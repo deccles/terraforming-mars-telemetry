@@ -433,6 +433,10 @@ public final class LogParser {
         if (trimmed.startsWith("IsMe:")) {
             boolean me = trimmed.endsWith("True");
             PlayerState seated = state.player(headerPlayer);
+            // Offline games also mark the AI seat IsMe. Only a human agent is the local player.
+            if (me && !seated.human) {
+                return;
+            }
             seated.human = me;
             if (me) {
                 state.humanId = headerPlayer;
@@ -829,6 +833,10 @@ public final class LogParser {
         }
         currentPlayer = playerId;
         if (state.activePlay != null && state.activePlay.playerId != playerId) {
+            if (state.activePlay.yours && !state.activePlay.drawn.isEmpty()) {
+                state.activePlay.placing = null;
+                return;
+            }
             state.activePlay = null;
         }
     }

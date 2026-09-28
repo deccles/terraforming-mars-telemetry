@@ -495,7 +495,7 @@ function drawnTipText(c) {
 function renderDrawn(play) {
   const drawn = play && play.drawn ? play.drawn : [];
   if (!drawn.length) return "";
-  return `<span class="banner-drawn">${drawn.map((c) => {
+  return `<span class="banner-drawn"><span class="drawn-label">Drew</span>${drawn.map((c) => {
     const inner = `<span class="drawn-name">${escapeHtml(c.name)}</span>
       <span class="drawn-meta">${c.cost != null ? costSym(c.cost) : ""}${(c.tags || []).map(tagIcon).join("")}</span>`;
     const cls = `drawn-card ${escapeHtml((c.color || "").toLowerCase())}`;
@@ -511,7 +511,8 @@ function renderBanner(data) {
   const play = data.activePlay;
   const banner = $("banner");
   banner.classList.remove("yours", "color-blue", "color-green", "color-purple", "color-yellow", "color-red", "color-black");
-  const key = play && play.cardName ? `${play.playerId}:${play.cardName}` : "";
+  const drawnKey = play && play.drawn ? play.drawn.map((c) => c.name).join(",") : "";
+  const key = play && play.cardName ? `${play.playerId}:${play.cardName}:${drawnKey}` : "";
   if (key !== bannerKey) {
     bannerKey = key;
     bannerOpen = !!key;
