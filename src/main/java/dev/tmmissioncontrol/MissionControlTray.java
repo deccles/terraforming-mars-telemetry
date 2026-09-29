@@ -11,9 +11,12 @@ import java.awt.PopupMenu;
 import java.awt.RenderingHints;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
+import java.awt.image.BaseMultiResolutionImage;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Tray icon so the windowless app can be opened or quit. */
 final class MissionControlTray {
@@ -70,7 +73,31 @@ final class MissionControlTray {
         App.exit(0);
     }
 
+    /** Tray art drawn for each size Windows uses (scripts/generate-small-icons.py); 16 is the 100% scale size. */
+    private static final int[] TRAY_SIZES = {16, 20, 24, 32, 40, 48};
+
+    /**
+     * The tray draws the icon at 16 px times the display scale. A multi-resolution image lets it pick the
+     * variant made for that size instead of shrinking the 1024 px app icon into a smudge.
+     */
     private static Image loadIcon() {
+        List<Image> variants = new ArrayList<>();
+        for (int size : TRAY_SIZES) {
+            try (InputStream in = MissionControlTray.class.getResourceAsStream("/tray/tray-" + size + ".png")) {
+                BufferedImage img = in == null ? null : ImageIO.read(in);
+                if (img != null) {
+                    variants.add(img);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (!variants.isEmpty()) {
+            return new BaseMultiResolutionImage(variants.toArray(new Image[0]));
+        }
+        return loadAppIcon();
+    }
+
+    private static Image loadAppIcon() {
         try (InputStream in = MissionControlTray.class.getResourceAsStream("/icon.png")) {
             if (in == null) {
                 return null;

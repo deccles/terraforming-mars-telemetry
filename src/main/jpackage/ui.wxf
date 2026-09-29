@@ -1,0 +1,27 @@
+<?xml version="1.0" ?>
+<!--
+  Replaces jpackage's default ui.wxf (same dialogs) to add a "Launch TM Mission Control" checkbox on the
+  final screen. Without it, people finished the installer, saw nothing happen, and assumed it had failed.
+  The in-app updater installs with /passive, which skips this screen, and relaunches the app itself.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <Fragment>
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR"></Property>
+
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch TM Mission Control"></Property>
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1"></Property>
+    <!-- Set at Finish so [INSTALLDIR] resolves to the folder the user chose. -->
+    <CustomAction Id="JpSetLaunchTarget" Property="WixShellExecTarget" Value="[INSTALLDIR]TMMissionControl.exe"></CustomAction>
+    <!-- Impersonate: run as the signed-in user, not with the installer's administrator rights. -->
+    <CustomAction Id="JpLaunchApp" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes"></CustomAction>
+
+    <UI Id="JpUI">
+      <UIRef Id="WixUI_InstallDir"></UIRef>
+      <DialogRef Id="InstallDirNotEmptyDlg"></DialogRef>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="6">NOT Installed</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="6">NOT Installed</Publish>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="JpSetLaunchTarget" Order="1">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="JpLaunchApp" Order="2">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+    </UI>
+  </Fragment>
+</Wix>

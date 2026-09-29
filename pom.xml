@@ -157,6 +157,9 @@
                          LocalCert needs it to make the HTTPS certificate on a fresh install. -->
                     <argument>--jlink-options</argument>
                     <argument>--strip-debug --no-man-pages --no-header-files</argument>
+                    <!-- ui.wxf here adds "Launch TM Mission Control" to the installer's last screen. -->
+                    <argument>--resource-dir</argument>
+                    <argument>${project.basedir}\src\main\jpackage</argument>
                   </arguments>
                 </configuration>
               </execution>

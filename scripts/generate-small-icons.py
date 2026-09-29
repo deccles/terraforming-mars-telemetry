@@ -1,0 +1,96 @@
+"""Draws the small icons, where the full app icon's detail is lost.
+
+- Tray (src/main/resources/tray/tray-N.png): Mars filling the square with the three tiles as a lower-right badge.
+- Desktop (src/main/icons/desktop-N.png): the same on a trimmed navy tile; generate-windows-installer-icon.ps1
+  puts these in the .ico for 16-48 px and uses the full icon.png for larger sizes.
+
+Everything is drawn at 8x from shapes and scaled down once per size, so each size is as sharp as it can be.
+Requires Pillow: python scripts/generate-small-icons.py
+"""
+import math
+from pathlib import Path
+
+from PIL import Image, ImageDraw
+
+ROOT = Path(__file__).resolve().parent.parent
+TRAY_SIZES = (16, 20, 24, 32, 40, 48)
+DESKTOP_SIZES = (16, 32, 48)
+
+NAVY = (14, 33, 66)
+PLANET = (191, 82, 42)
+RIM = (92, 34, 16)
+EDGE = (60, 22, 10)
+CITY = (205, 211, 218)
+FOREST = (46, 140, 58)
+OCEAN = (40, 118, 200)
+SUPER = 8
+LOWER_RIGHT = (0.55, 0.835)  # same direction as the tiles on the app icon
+
+
+def hex_points(x, y, r):
+    return [(x + r * math.cos(math.radians(a)), y + r * math.sin(math.radians(a))) for a in range(-90, 270, 60)]
+
+
+def draw_planet(d, cx, cy, radius, rim):
+    d.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), fill=RIM)
+    inner = radius - rim
+    d.ellipse((cx - inner, cy - inner, cx + inner, cy + inner), fill=PLANET)
+
+
+def draw_tiles(d, pcx, pcy, planet_r, r, gap, outline, bounds):
+    """Three touching pointy-top tiles, shifted toward the lower right as far as `bounds` allows."""
+    dist = math.sqrt(3) * r + gap
+    k = dist / math.sqrt(3)
+    ux, uy = LOWER_RIGHT
+    lo, hi = bounds
+
+    def centres(t):
+        x0, y0 = pcx + ux * t, pcy + uy * t
+        return ((x0, y0 - k), (x0 - dist / 2, y0 + k / 2), (x0 + dist / 2, y0 + k / 2))
+
+    def fits(t):
+        return all(lo <= px <= hi and lo <= py <= hi for c in centres(t) for px, py in hex_points(c[0], c[1], r))
+
+    t, step = 0.0, planet_r * 0.004
+    while t < planet_r * 0.5 and fits(t + step):  # half the radius: as far out as the app icon's tiles
+        t += step
+    for (x, y), color in zip(centres(t), (CITY, FOREST, OCEAN)):
+        d.polygon(hex_points(x, y, r), fill=EDGE)
+        d.polygon(hex_points(x, y, r - outline), fill=color)
+
+
+def tray(size):
+    s = size * SUPER
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    rim = max(1.0, size / 16) * SUPER
+    draw_planet(d, s / 2, s / 2, s / 2 - 0.5, rim)
+    # Over the rim like a badge, into the square's empty lower-right corner.
+    draw_tiles(d, s / 2, s / 2, s / 2, r=0.165 * s, gap=0.025 * s,
+               outline=max(0.9, size / 20) * SUPER, bounds=(0.02 * s, s - 0.02 * s))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def desktop(size):
+    s = size * SUPER
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    margin = 0.03 * s                              # the full icon's margin is ~8%; trimmed to give the planet room
+    d.rounded_rectangle((margin, margin, s - margin, s - margin), radius=0.2 * s, fill=NAVY)
+    planet_r = 0.36 * s
+    draw_planet(d, s / 2, s / 2, planet_r, max(0.6, size / 32) * SUPER)
+    draw_tiles(d, s / 2, s / 2, planet_r, r=0.13 * s, gap=0.02 * s,
+               outline=max(0.8, size / 24) * SUPER, bounds=(margin + 0.05 * s, s - margin - 0.05 * s))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+if __name__ == "__main__":
+    tray_dir = ROOT / "src" / "main" / "resources" / "tray"
+    desktop_dir = ROOT / "src" / "main" / "icons"
+    tray_dir.mkdir(parents=True, exist_ok=True)
+    desktop_dir.mkdir(parents=True, exist_ok=True)
+    for size in TRAY_SIZES:
+        tray(size).save(tray_dir / f"tray-{size}.png")
+    for size in DESKTOP_SIZES:
+        desktop(size).save(desktop_dir / f"desktop-{size}.png")
+    print(f"wrote {len(TRAY_SIZES)} tray and {len(DESKTOP_SIZES)} desktop icons")
