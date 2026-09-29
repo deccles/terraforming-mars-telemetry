@@ -40,6 +40,23 @@ h1 {
 .qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: inherit; }
 .qr { width: 88px; height: 88px; background: #fff; padding: 5px; border-radius: 8px; box-sizing: border-box; }
 .qr-url { font-size: 0.7rem; color: var(--muted); max-width: 110px; text-align: center; word-break: break-all; line-height: 1.2; }
+.qr-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.qr-wrap.blocked .qr { opacity: 0.3; }
+.phone-blocked { display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 130px; text-align: center; }
+.phone-blocked[hidden] { display: none; }
+.phone-blocked-text { font-size: 0.72rem; color: #ffe08a; line-height: 1.2; }
+.phone-fix {
+  padding: 4px 10px;
+  border: 1px solid #c4922a;
+  border-radius: 999px;
+  background: #3a2a0a;
+  color: #ffe08a;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.phone-fix:hover { background: #4a360e; }
+.phone-fix:disabled { opacity: 0.7; cursor: wait; }
 
 .banner {
   margin: 16px 0;

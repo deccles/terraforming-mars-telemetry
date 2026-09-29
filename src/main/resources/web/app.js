@@ -579,6 +579,7 @@ function render(data) {
     $("qr-link").title = data.url;
     $("qr-url").textContent = data.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
   }
+  renderPhoneAccess(data);
 
   renderBanner(data);
   renderMilestones(data);
@@ -590,6 +591,37 @@ function render(data) {
   renderScore(data, players);
   alignBoardSections();
   applyOpenTip();
+}
+
+/** Only this PC can raise the Windows admin prompt; a phone that got here doesn't need the button. */
+function onThisPc() {
+  return ["127.0.0.1", "localhost", "[::1]"].includes(location.hostname);
+}
+
+function renderPhoneAccess(data) {
+  const blocked = data.firewallOpen === false;
+  $("qr-link").classList.toggle("blocked", blocked);
+  $("phone-blocked").hidden = !blocked;
+  $("phone-fix").hidden = !onThisPc();
+}
+
+function bindPhoneAccessUi() {
+  const btn = $("phone-fix");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "Answer the Windows prompt…";
+    let open = false;
+    try {
+      const res = await fetch("/api/firewall/fix", { method: "POST" });
+      open = res.ok && (await res.json()).open === true;
+    } catch {
+      open = false;
+    }
+    btn.disabled = false;
+    btn.textContent = open ? "Allow phones" : "Still blocked — try again";
+    lastStateText = "";
+    tick();
+  });
 }
 
 function scoreOf(data, p) {
@@ -1150,3 +1182,4 @@ bindScoreUi();
 bindBannerUi();
 bindCorpUi();
 bindTipUi();
+bindPhoneAccessUi();

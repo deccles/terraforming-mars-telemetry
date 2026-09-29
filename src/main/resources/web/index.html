@@ -18,10 +18,17 @@
     </div>
     <div class="top-right">
       <div class="live" id="live" role="status">idle</div>
-      <a class="qr-wrap" id="qr-link" href="/" title="Mission Control URL">
-        <img class="qr" id="qr" src="/qr.svg" alt="QR code for this Mission Control URL">
-        <span class="qr-url" id="qr-url"></span>
-      </a>
+      <div class="qr-col">
+        <a class="qr-wrap" id="qr-link" href="/" title="Mission Control URL">
+          <img class="qr" id="qr" src="/qr.svg" alt="QR code for this Mission Control URL">
+          <span class="qr-url" id="qr-url"></span>
+        </a>
+        <div class="phone-blocked" id="phone-blocked" role="status" hidden>
+          <span class="phone-blocked-text">Phones can't connect yet</span>
+          <button type="button" class="phone-fix" id="phone-fix"
+            title="Windows Firewall is blocking phones. Windows will ask for administrator permission.">Allow phones</button>
+        </div>
+      </div>
     </div>
   </header>
 

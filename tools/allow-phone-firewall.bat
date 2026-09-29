@@ -30,12 +30,15 @@ netsh advfirewall firewall delete rule name="TM Mission Control LAN" >nul 2>nul
 netsh advfirewall firewall delete rule name="TM Mission Control Java" >nul 2>nul
 netsh advfirewall firewall delete rule name="TM Mission Control Java UDP" >nul 2>nul
 netsh advfirewall firewall delete rule name="TM Mission Control mDNS" >nul 2>nul
+netsh advfirewall firewall delete rule name="TM Mission Control app" >nul 2>nul
 netsh advfirewall firewall add rule name="TM Mission Control" dir=in action=allow protocol=TCP localport=443,8080,8765 profile=any enable=yes
 netsh advfirewall firewall add rule name="TM Mission Control HTTPS" dir=in action=allow protocol=TCP localport=443 profile=any enable=yes
 netsh advfirewall firewall add rule name="TM Mission Control mDNS" dir=in action=allow protocol=UDP localport=5353 profile=any enable=yes
 if exist "%JAVA_EXE%" (
-  netsh advfirewall firewall add rule name="TM Mission Control Java" dir=in action=allow program="%JAVA_EXE%" protocol=TCP profile=any enable=yes
-  netsh advfirewall firewall add rule name="TM Mission Control Java UDP" dir=in action=allow program="%JAVA_EXE%" protocol=UDP profile=any enable=yes
+  rem Windows blocks the program when its "allow access?" prompt is cancelled; a block beats every allow.
+  powershell -NoProfile -Command "$exe='%JAVA_EXE%'; Get-NetFirewallApplicationFilter | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -ieq $exe } | Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' } | Remove-NetFirewallRule"
+  netsh advfirewall firewall add rule name="TM Mission Control app" dir=in action=allow program="%JAVA_EXE%" protocol=TCP profile=any enable=yes
+  netsh advfirewall firewall add rule name="TM Mission Control app" dir=in action=allow program="%JAVA_EXE%" protocol=UDP profile=any enable=yes
 )
 if errorlevel 1 (
   echo Failed to add the firewall rule.

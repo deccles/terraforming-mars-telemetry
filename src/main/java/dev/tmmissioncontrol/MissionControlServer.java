@@ -82,8 +82,9 @@ public final class MissionControlServer {
         allowInboundNamed("TM Mission Control 8080", 8080);
         allowInboundUdp("TM Mission Control mDNS", 5353);
         allowJavaProgram();
-        boolean desktopRule = allowInbound(port);
-        state.firewallOpen = firewallOpen || FirewallSetup.javaRulePresent() || desktopRule;
+        allowInbound(port);
+        // Port rules alone don't prove phones get through: a block rule on the program overrides them.
+        state.firewallOpen = firewallOpen;
         qrSvg = QrCodes.svg(state.url).getBytes(StandardCharsets.UTF_8);
         server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         mount(server);
@@ -96,6 +97,7 @@ public final class MissionControlServer {
     private void mount(HttpServer http) {
         http.createContext("/api/state", this::state);
         http.createContext("/api/shutdown", this::shutdown);
+        http.createContext("/api/firewall/fix", this::fixFirewall);
         http.createContext("/qr.svg", this::qr);
         http.createContext("/", this::staticFile);
     }
@@ -349,6 +351,27 @@ public final class MissionControlServer {
         stopper.start();
     }
 
+    /** The page's Allow phones button. Local only: it raises a Windows admin prompt on this PC. */
+    private void fixFirewall(HttpExchange exchange) throws IOException {
+        InetAddress remote = exchange.getRemoteAddress() == null ? null : exchange.getRemoteAddress().getAddress();
+        if (remote == null || !remote.isLoopbackAddress()) {
+            exchange.sendResponseHeaders(403, -1);
+            return;
+        }
+        if (!"POST".equals(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(405, -1);
+            return;
+        }
+        boolean open = FirewallSetup.fix();
+        state.firewallOpen = open;
+        byte[] body = ("{\"open\":" + open + "}").getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+        exchange.sendResponseHeaders(200, body.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(body);
+        }
+    }
+
     private void state(HttpExchange exchange) throws IOException {
         if (!"GET".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(405, -1);
@@ -483,10 +506,7 @@ public final class MissionControlServer {
     }
 
     private static boolean allowJavaProgram() {
-        Path java = FirewallSetup.javaExe();
-        boolean tcp = allowProgram("TM Mission Control Java", java, "TCP");
-        allowProgram("TM Mission Control Java UDP", java, "UDP");
-        return tcp;
+        return allowProgram(FirewallSetup.APP_RULE, FirewallSetup.appExe(), "TCP");
     }
 
     static boolean allowInbound(int port) {
