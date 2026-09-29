@@ -1,7 +1,9 @@
 package dev.tmmissioncontrol;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class PlayedCard {
     public String name;
@@ -17,4 +19,10 @@ public final class PlayedCard {
     public String tokenType;
     public int tokens;
     public int printedVp;
+    /** Printed effects the catalog keeps as data rather than text, for card popovers. */
+    public Map<String, Object> resources = new LinkedHashMap<>();
+    public Map<String, Object> production = new LinkedHashMap<>();
+    public Map<String, Object> req = new LinkedHashMap<>();
+    public List<String> place = new ArrayList<>();
+    public Integer cost;
 }

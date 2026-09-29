@@ -363,7 +363,32 @@ h1 {
 .score-chart-svg .chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .score-chart-svg .chart-dot { stroke: #140c0a; stroke-width: 1; }
 .score-chart-svg .chart-axis { fill: var(--muted); font-size: 9px; }
+.chart-picker { margin: 0 0 12px; }
+.chart-picker-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 6px; }
+.chart-picker-label { min-width: 5.5rem; color: var(--muted); font-size: 0.8rem; }
+.chart-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  height: 2rem;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chart-chip.icon { padding: 0 5px; }
+.chart-chip:hover { background: #2c1c18; }
+.chart-chip.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--ink); }
 .score-gen { margin-top: 4px; }
+.score-gen-player .gen-moved { color: var(--muted); font-size: 0.85rem; }
+.score-gen-player li.moved { color: var(--ink); }
+.score-gen-player li strong { color: var(--ink); }
 .score-gen-kicker { margin: 0 0 8px; color: var(--muted); font-size: 0.8rem; }
 .score-gen-player { margin: 0 0 10px; padding-left: 8px; border-left: 3px solid var(--team, var(--line)); }
 .score-gen-player strong { color: var(--team, var(--ink)); }
@@ -661,6 +686,12 @@ table.cubes td.prod { color: #f0c27a; }
 .ms-chip.tip { display: inline-flex; }
 .ms-item.tip { display: flex; }
 .drawn-card.tip { display: flex; }
+.card-ref { border-bottom: 1px dotted color-mix(in srgb, currentColor 50%, transparent); }
+.card-ref > .tip-pop { max-width: min(26rem, 88vw); white-space: pre-wrap; }
+.tip-card-head { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; }
+.tip-card-vp { display: block; margin-top: 4px; color: var(--muted); }
+.tip-card-req { display: block; margin: 0 0 4px; color: var(--muted); font-style: italic; }
+.tip-card-gains { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 6px; white-space: normal; }
 .drawn-card > .tip-pop {
   max-width: min(28rem, 92vw);
   white-space: pre-wrap;

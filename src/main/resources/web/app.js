@@ -255,23 +255,23 @@ function renderMilestones(data) {
   const left = ms.left ?? Math.max(0, 3 - claimed.length);
   $("ms-claimed-kicker").textContent = "Claimed";
   $("ms-left").textContent = left === 0 ? "All 3 taken" : `${left} still open`;
-  $("ms-claimed").innerHTML = claimed.length
+  setHtml($("ms-claimed"), claimed.length
     ? claimed.map((c) => tipWrap(c.name,
       `<span class="name">${escapeHtml(c.name)}</span>` +
       `<span class="who">${escapeHtml(c.playerName || "")}</span>`,
       `ms-chip color-${escapeHtml(c.color || "blue")}`)).join("")
-    : `<p class="ms-empty">None claimed yet</p>`;
+    : `<p class="ms-empty">None claimed yet</p>`);
 
   const awardBlock = $("award-block");
   awardBlock.hidden = funded.length === 0;
-  $("ms-awards").innerHTML = funded.map(awardChip).join("");
+  setHtml($("ms-awards"), funded.map(awardChip).join(""));
 
   const grabBox = $("ms-grab");
   const closeBox = $("ms-close");
   grabBox.hidden = grab.length === 0;
   closeBox.hidden = close.length === 0;
-  $("ms-grab-list").innerHTML = grab.map((row) => milestoneItem(row, true)).join("");
-  $("ms-close-list").innerHTML = close.map((row) => milestoneItem(row, false)).join("");
+  setHtml($("ms-grab-list"), grab.map((row) => milestoneItem(row, true)).join(""));
+  setHtml($("ms-close-list"), close.map((row) => milestoneItem(row, false)).join(""));
   applyOpenTip();
 }
 
@@ -404,7 +404,7 @@ function resLabel(key) {
 const TI_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.2 14.7 8.6h6.8l-5.5 4.1 2.1 6.7L12 15.8 5.9 19.4l2.1-6.7L2.5 8.6h6.8z"/></svg>';
 const RES_ICONS = {
   mc: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path fill="currentColor" d="M7.2 16V8h1.5l3.3 5.2L15.3 8H16.8v8h-1.6v-5.1L12 14.2l-3.2-4.3V16z"/></svg>',
-  steel: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 4h14v5h-4v12H7V9H3z"/></svg>',
+  steel: '<svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(12 12) rotate(-30) translate(-9 -12.3)"><path fill="currentColor" d="M2.2 3.6h13.6v4.8H12v12.6H6.4V8.4H2.2z"/></g></svg>',
   ti: TI_STAR,
   plant: '<svg viewBox="0 0 24 24" aria-hidden="true">' + PLANT_LEAF + '</svg>',
   energy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M13 2 4 14h7l-1 8 10-14h-7z"/></svg>',
@@ -536,20 +536,20 @@ function renderBanner(data) {
     $("banner-chevron").hidden = false;
     const who = (play.yours && accountName(data.you)) || play.playerLabel;
     $("banner-kicker").textContent = `${who}${play.colorLabel ? " · " + play.colorLabel : ""}`;
-    $("banner-line").innerHTML = `<span class="banner-name">${escapeHtml(play.cardName)}</span>${
+    setHtml($("banner-line"), `<span class="banner-name">${escapeHtml(play.cardName)}</span>${
       play.cost != null ? costSym(play.cost) : ""
-    }${(play.tags || []).map(tagIcon).join("")}${renderDrawn(play)}`;
-    $("banner-benefit").innerHTML = benefitHtml(play);
+    }${(play.tags || []).map(tagIcon).join("")}${renderDrawn(play)}`);
+    setHtml($("banner-benefit"), benefitHtml(play));
     $("banner-effect").textContent = play.effect || "";
-    $("banner-tips").innerHTML = (play.remember || []).map((t) => `<li>${escapeHtml(t)}</li>`).join("");
+    setHtml($("banner-tips"), (play.remember || []).map((t) => `<li>${escapeHtml(t)}</li>`).join(""));
   } else {
     $("banner-toggle").disabled = true;
     $("banner-chevron").hidden = true;
     $("banner-kicker").textContent = "No card in flight";
-    $("banner-line").textContent = "";
-    $("banner-benefit").innerHTML = "";
+    setHtml($("banner-line"), "");
+    setHtml($("banner-benefit"), "");
     $("banner-effect").textContent = "";
-    $("banner-tips").innerHTML = "";
+    setHtml($("banner-tips"), "");
     bannerOpen = false;
   }
   applyBannerOpen();
@@ -586,7 +586,7 @@ function render(data) {
   const players = tablePlayers(data);
   const boards = $("boards");
   boards.className = "boards players-" + Math.max(1, Math.min(5, players.length));
-  boards.innerHTML = players.map(renderPlayer).join("");
+  setHtml(boards, players.map(renderPlayer).join(""));
   renderScore(data, players);
   alignBoardSections();
   applyOpenTip();
@@ -619,19 +619,22 @@ function renderScore(data, players) {
       || creditsOf(c.p, c.b) - creditsOf(a.p, a.b)
       || a.p.id - c.p.id);
   const topVp = breakdowns[0]?.b.total ?? 0;
-  const vpTie = breakdowns.filter(({ b }) => (b.total ?? 0) === topVp).length > 1;
+  const vpCounts = new Map();
+  for (const { b } of breakdowns) vpCounts.set(b.total ?? 0, (vpCounts.get(b.total ?? 0) || 0) + 1);
+  const isTied = (b) => vpCounts.get(b.total ?? 0) > 1;
   const winnerId = breakdowns[0]?.p.id;
-  $("score-line").innerHTML = breakdowns.map(({ p, b }, i) => {
+  setHtml($("score-line"), breakdowns.map(({ p, b }, i) => {
     const name = displayName(p, "P" + p.id);
     const ahead = p.id === winnerId && topVp > 0;
     const sep = i === 0 ? "" : `<span class="score-vs">—</span>`;
-    const mc = vpTie ? costSym(creditsOf(p, b)) : "";
+    const credits = creditsOf(p, b);
+    const mc = isTied(b) ? `<span class="sym cost-sym" title="${credits} M€ — most M€ wins a VP tie">${credits}</span>` : "";
     return `${sep}<span class="score-chip color-${teamColor(p)}${ahead ? " ahead" : ""}"><span class="name">${name}</span> <strong>${b.total ?? 0}</strong>${mc}</span>`;
-  }).join("") + `<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6 1.4 1.4-6 6-6-6z"/></svg></span>`;
+  }).join("") + `<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M7.4 8.6 12 13.2l4.6-4.6 1.4 1.4-6 6-6-6z"/></svg></span>`);
 
-  $("score-head").innerHTML = `<tr><th></th>${breakdowns.map(({ p }) =>
+  setHtml($("score-head"), `<tr><th></th>${breakdowns.map(({ p }) =>
     `<th class="team color-${teamColor(p)}">${displayName(p, "P" + p.id)}</th>`
-  ).join("")}</tr>`;
+  ).join("")}</tr>`);
 
   const history = score.history || [];
   const showCharts = (data.generation ?? 0) >= 3 || ended;
@@ -642,23 +645,24 @@ function renderScore(data, players) {
     ["Greeneries", (b) => b.greeneries, false],
     ["Cities", (b) => b.cities, false],
     ["Cards + tokens", (b) => b.cards, true],
-    [`${resMark("mc")} tiebreak`, (b) => b.mc, false],
   ];
-  $("score-lines").innerHTML = rows.map(([n, pick, drill]) =>
+  setHtml($("score-lines"), rows.map(([n, pick, drill]) =>
     `<tr${drill ? ` class="clickable${cardsOpen ? " open" : ""}" data-drill="cards" title="Click for card VP"` : ""}><td>${n}</td>${
       breakdowns.map(({ b }) => `<td>${pick(b) ?? 0}</td>`).join("")
     }</tr>`
-  ).join("");
+  ).join(""));
 
-  $("score-cards").innerHTML = breakdowns.map(({ p, b }) => `
+  indexChartCards(players);
+  beginCardRefs("vpcard");
+  setHtml($("score-cards"), breakdowns.map(({ p, b }) => `
     <div class="color-${teamColor(p)}">
       <h3 class="section-title">${displayName(p, "P" + p.id)} cards</h3>
-      <ul>${(b.cardDetails || []).map((d) => `<li>${d}</li>`).join("") || "<li>None</li>"}</ul>
-    </div>`).join("");
+      <ul>${(b.cardDetails || []).map(cardDetailItem).join("") || "<li>None</li>"}</ul>
+    </div>`).join(""));
   renderScoreCharts(data, players, history, ended);
   const notes = [];
   if (score.note) notes.push(score.note);
-  if (vpTie && topVp > 0) notes.push("VP tie — most credits win.");
+  if (breakdowns.some(({ b }) => isTied(b) && (b.total ?? 0) > 0)) notes.push("VP tie — most M€ wins.");
   $("score-note").textContent = notes.join(" ");
   $("score-note").hidden = notes.length === 0;
   $("score-details").hidden = !scoreOpen;
@@ -669,6 +673,13 @@ function renderScore(data, players) {
   $("score-toggle").setAttribute("aria-expanded", scoreOpen ? "true" : "false");
 }
 
+/** "+3 Birds" from the score breakdown, with the card name hoverable. */
+function cardDetailItem(detail) {
+  const m = String(detail).match(/^([+-]?\d+) (.+)$/);
+  if (!m) return `<li>${escapeHtml(detail)}</li>`;
+  return `<li><strong>${m[1]}</strong> ${cardRef(m[2])}</li>`;
+}
+
 const TEAM_HEX = { blue: "#3d7ec9", green: "#2f9e44", purple: "#9b59b6", yellow: "#d4b429", red: "#c44532" };
 
 function historyValue(point, playerId, key) {
@@ -677,23 +688,51 @@ function historyValue(point, playerId, key) {
   return Number(b[key] ?? 0);
 }
 
+const PROD_RES = ["mc", "steel", "ti", "plant", "energy", "heat"];
+const CHART_METRICS = [
+  { id: "vp", key: "total", label: "VP" },
+  { id: "tr", key: "tr", label: "TR", kind: "tr" },
+  ...PROD_RES.map((r) => {
+    const name = resLabel(r);
+    return { id: "prod-" + r, key: "prod-" + r, res: r, kind: "prod-" + r,
+      label: name.charAt(0).toUpperCase() + name.slice(1) + " production" };
+  }),
+];
+
+function chartMetric() {
+  return CHART_METRICS.find((m) => m.id === chartMetricId) || CHART_METRICS[0];
+}
+
+function chartMetricTitle(metric, ended) {
+  if (metric.id === "vp") return ended ? "Total VP" : "VP if the game ended now";
+  return metric.label;
+}
+
+function chartChip(metric) {
+  const on = metric.id === chartMetricId ? " on" : "";
+  const face = metric.res ? resMark(metric.res) : metric.label;
+  return `<button type="button" class="chart-chip${on}${metric.res ? " icon" : ""}" data-metric="${metric.id}" title="${metric.label}" aria-label="${metric.label}" aria-pressed="${on ? "true" : "false"}">${face}</button>`;
+}
+
 function renderScoreCharts(data, players, history, ended) {
   const box = $("score-charts");
   if (!history || history.length < 2) {
-    box.innerHTML = `<p class="score-note">Not enough generations yet.</p>`;
+    setHtml(box, `<p class="score-note">Not enough generations yet.</p>`);
     return;
   }
-  const vpTitle = ended ? "Total VP" : "If the game ended now";
-  box.innerHTML = `
-    <div class="score-chart-block">
-      <h3 class="section-title">TR</h3>
-      ${lineChartSvg(history, players, "tr", "TR")}
+  const metric = chartMetric();
+  const score = CHART_METRICS.filter((m) => !m.res);
+  const prod = CHART_METRICS.filter((m) => m.res);
+  setHtml(box, `
+    <div class="chart-picker">
+      <div class="chart-picker-row"><span class="chart-picker-label">Score</span>${score.map(chartChip).join("")}</div>
+      <div class="chart-picker-row"><span class="chart-picker-label">Production</span>${prod.map(chartChip).join("")}</div>
     </div>
     <div class="score-chart-block">
-      <h3 class="section-title">${vpTitle}</h3>
-      ${lineChartSvg(history, players, "total", "VP")}
+      <h3 class="section-title">${chartMetricTitle(metric, ended)}</h3>
+      ${lineChartSvg(history, players, metric.key, metric.label)}
     </div>
-    <div class="score-gen" id="score-gen"></div>`;
+    <div class="score-gen" id="score-gen"></div>`);
   renderGenExplain(data, players, history);
 }
 
@@ -753,19 +792,27 @@ function signed(n) {
 function renderGenExplain(data, players, history) {
   const el = $("score-gen");
   if (!el) return;
+  indexChartCards(players);
+  beginCardRefs("gencard");
   if (selectedGen == null) {
-    el.innerHTML = `<p class="score-gen-kicker">Tap a generation to see what moved.</p>`;
+    setHtml(el, `<p class="score-gen-kicker">Tap a generation to see what moved.</p>`);
     return;
   }
   const idx = history.findIndex((pt) => pt.generation === selectedGen);
   if (idx < 0) {
-    el.innerHTML = `<p class="score-gen-kicker">Tap a generation to see what moved.</p>`;
+    setHtml(el, `<p class="score-gen-kicker">Tap a generation to see what moved.</p>`);
     return;
   }
   const cur = history[idx];
   const prev = idx > 0 ? history[idx - 1] : null;
-  const events = (data.score.events || []).filter((e) => e.generation === selectedGen);
-  const title = cur.now ? `Now (gen ${selectedGen})` : `Generation ${selectedGen}`;
+  const metric = chartMetric();
+  const title = `${cur.now ? `Now (gen ${selectedGen})` : `Generation ${selectedGen}`} · ${metric.label}`;
+  if (metric.kind) {
+    setHtml(el, `<p class="score-gen-kicker">${title}</p>`
+      + players.map((p) => renderContributors(data, p, metric, cur, prev)).join(""));
+    return;
+  }
+  const events = (data.score.events || []).filter((e) => e.generation === selectedGen && !e.kind.startsWith("prod-"));
   const buckets = [
     ["TR", "tr"],
     ["Milestones", "milestones"],
@@ -774,21 +821,161 @@ function renderGenExplain(data, players, history) {
     ["Cities", "cities"],
     ["Cards", "cards"],
   ];
-  el.innerHTML = `<p class="score-gen-kicker">${title}</p>` + players.map((p) => {
+  setHtml(el, `<p class="score-gen-kicker">${title}</p>` + players.map((p) => {
     const total = historyValue(cur, p.id, "total") - (prev ? historyValue(prev, p.id, "total") : 0);
     const parts = buckets.map(([name, key]) => {
       const d = historyValue(cur, p.id, key) - (prev ? historyValue(prev, p.id, key) : 0);
       return d ? `${name} ${signed(d)}` : "";
     }).filter(Boolean);
-    const named = events.filter((e) => e.playerId === p.id).map((e) => `<li>${escapeHtml(e.label)}</li>`).join("");
+    const named = vpSources(events.filter((e) => e.playerId === p.id)).join("");
     return `<div class="score-gen-player color-${teamColor(p)}">
-      <strong>${escapeHtml(displayName(p, "P" + p.id))} ${signed(total)}</strong>
+      <strong>${escapeHtml(displayName(p, "P" + p.id))} ${historyValue(cur, p.id, "total")}</strong>${prev ? ` <span class="gen-moved">${signed(total)}</span>` : ""}
       ${parts.length ? `<span class="buckets">${parts.join(" · ")}</span>` : ""}
       ${named ? `<ul>${named}</ul>` : ""}
     </div>`;
-  }).join("");
+  }).join(""));
 }
 
+let chartCards = new Map();
+let cardRefScope = "card";
+let cardRefSeq = 0;
+
+/** Start numbering card popovers for one section, so tips in different sections never share a key. */
+function beginCardRefs(scope) {
+  cardRefScope = scope;
+  cardRefSeq = 0;
+}
+
+/** Every played card (and corporation) at the table, by lower-case name. */
+function indexChartCards(players) {
+  chartCards = new Map();
+  for (const p of players) {
+    for (const c of [...(p.blueCards || []), ...(p.greenCards || []), ...(p.events || [])]) {
+      chartCards.set(String(c.name).toLowerCase(), c);
+    }
+    if (p.corporation && p.corporation !== "Unknown") {
+      chartCards.set(p.corporation.toLowerCase(), { name: p.corporation, tags: [], extra: corpRuleText(p.corpRules) });
+    }
+  }
+}
+
+/** A chart label, with a card popover when it names a played card ("X", "X action", "X (Player)"). */
+function cardRef(label) {
+  const text = escapeHtml(label);
+  const m = String(label).match(/^(.*?)(?: action)?(?: \([^)]*\))?$/);
+  const card = m && chartCards.get(m[1].toLowerCase());
+  if (!card) return text;
+  const body = String(card.extra || "").split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !/^-+$/.test(line))
+    .join("\n");
+  const tags = (card.tags || []).map(tagIcon).join("");
+  const cost = card.cost != null ? costSym(card.cost) : "";
+  const req = formatReq(card.req);
+  // Global parameters and TR have no icon; spell them out rather than show a bare colored box.
+  const gain = (k, v, prod) => resIcon(resKey(k))
+    ? resSym(k, v, prod)
+    : `<span class="tip-card-gain">${escapeHtml(`${Number(v) > 0 ? "+" : ""}${v} ${resLabel(resKey(k))}`)}</span>`;
+  const gains = [
+    ...Object.entries(card.production || {}).filter(([, v]) => v != null && v !== 0).map(([k, v]) => gain(k, v, true)),
+    ...Object.entries(card.resources || {}).filter(([, v]) => v != null && v !== 0).map(([k, v]) => gain(k, v, false)),
+  ];
+  const resourceKeys = Object.keys(card.resources || {});
+  const places = (card.place || []).filter((k) => !resourceKeys.includes(k))
+    .map((k) => `Place ${escapeHtml(k)} tile`);
+  const vp = card.printedVp ? `<span class="tip-card-vp">${card.printedVp} VP</span>` : "";
+  const tokens = card.tokens ? `<span class="tip-card-vp">${card.tokens} ${tokenWord(card.tokenType, card.tokens)} now</span>` : "";
+  const pop = `<span class="tip-card-head"><strong>${escapeHtml(card.name)}</strong>${cost}${tags}</span>`
+    + (req ? `<span class="tip-card-req">${escapeHtml(req)}</span>` : "")
+    + (gains.length ? `<span class="tip-card-gains">${gains.join("")}</span>` : "")
+    + (places.length ? `<span class="tip-def">${places.join(" · ")}</span>` : "")
+    + (body ? `<span class="tip-def">${escapeHtml(body)}</span>` : "")
+    + vp + tokens;
+  return `<span class="tip card-ref" tabindex="0" data-tip-key="${cardRefScope}${++cardRefSeq}">${text}<span class="tip-pop" role="tooltip">${pop}</span></span>`;
+}
+
+function tokenWord(type, n) {
+  const word = type || "resource";
+  return Math.abs(n) === 1 ? word : word + "s";
+}
+
+/** Short name for what moved tokens on {@code card}: its own action reads as "action". */
+function tokenCause(cause, card) {
+  if (!cause || cause === "Other") return "";
+  if (cause === card + " action") return "action";
+  if (cause === card) return "when played";
+  return cause;
+}
+
+/** One row per card or action: VP it earned this generation, with token and TR notes. */
+function vpSources(events) {
+  const bySource = new Map();
+  for (const e of events) {
+    const key = e.source || e.label;
+    const row = bySource.get(key)
+      || { source: key, vp: 0, tr: 0, tokens: 0, tokenType: "", funded: false, causes: new Map() };
+    row.vp += e.delta;
+    if (e.kind === "tr") row.tr += e.delta;
+    if (e.kind === "award") row.funded = true;
+    if (e.tokens) {
+      row.tokens += e.tokens;
+      row.tokenType = e.tokenType || row.tokenType;
+      const cause = tokenCause(e.cause, key);
+      row.causes.set(cause, (row.causes.get(cause) || 0) + e.tokens);
+    }
+    bySource.set(key, row);
+  }
+  return [...bySource.values()]
+    .filter((r) => r.vp !== 0 || r.tokens !== 0 || r.funded)
+    .sort((a, b) => b.vp - a.vp || a.source.localeCompare(b.source))
+    .map((r) => {
+      const notes = [];
+      if (r.tr) notes.push(r.tr === r.vp ? "TR" : `${signed(r.tr)} TR`);
+      const moves = [...r.causes].filter(([, n]) => n !== 0);
+      for (const [cause, n] of moves) {
+        notes.push(`${signed(n)} ${escapeHtml(tokenWord(r.tokenType, n))}${cause ? ` (${cardRef(cause)})` : ""}`);
+      }
+      const vp = r.vp || r.funded ? (r.vp ? ` <strong>${signed(r.vp)}</strong>` : "") : " <strong>0</strong>";
+      return `<li>${cardRef(r.source)}${vp}${notes.length ? ` · ${notes.join(", ")}` : ""}</li>`;
+    });
+}
+
+/** Everything that built one player's TR or production up to the selected generation. */
+function renderContributors(data, p, metric, cur, prev) {
+  const value = historyValue(cur, p.id, metric.key);
+  const moved = prev ? value - historyValue(prev, p.id, metric.key) : 0;
+  const bySource = new Map();
+  for (const e of data.score.events || []) {
+    if (e.kind !== metric.kind || e.playerId !== p.id || e.generation > selectedGen) continue;
+    const row = bySource.get(e.label) || { label: e.label, total: 0, now: 0 };
+    row.total += e.delta;
+    if (e.generation === selectedGen) row.now += e.delta;
+    bySource.set(e.label, row);
+  }
+  const rows = [...bySource.values()]
+    .filter((r) => r.total !== 0 || r.now !== 0)
+    .sort((a, b) => Math.abs(b.now) - Math.abs(a.now) || Math.abs(b.total) - Math.abs(a.total));
+  const base = value - rows.reduce((sum, r) => sum + r.total, 0);
+  const items = rows.map((r) => {
+    const note = r.now === 0 ? "" : r.now === r.total ? " (new)" : ` (${signed(r.now)} this gen)`;
+    return `<li${r.now ? ` class="moved"` : ""}>${cardRef(r.label)} <strong>${signed(r.total)}</strong>${note}</li>`;
+  });
+  if (base !== 0) items.push(`<li>${metric.kind === "tr" ? "Starting TR" : "Base"} <strong>${base}</strong></li>`);
+  return `<div class="score-gen-player color-${teamColor(p)}">
+    <strong>${escapeHtml(displayName(p, "P" + p.id))} ${value}</strong>${prev && moved ? ` <span class="gen-moved">${signed(moved)}</span>` : ""}
+    ${items.length ? `<ul>${items.join("")}</ul>` : ""}
+  </div>`;
+}
+
+function loadChartMetric() {
+  try {
+    return localStorage.getItem("chartMetric") || "vp";
+  } catch {
+    return "vp";
+  }
+}
+
+let chartMetricId = loadChartMetric();
 let scoreOpen = false;
 let cardsOpen = false;
 let chartsOpen = false;
@@ -903,6 +1090,19 @@ function bindScoreUi() {
     $("score-chart-toggle").setAttribute("aria-expanded", chartsOpen ? "true" : "false");
   });
   $("score-charts").addEventListener("click", (ev) => {
+    const chip = ev.target.closest("[data-metric]");
+    if (chip) {
+      chartMetricId = chip.dataset.metric;
+      try {
+        localStorage.setItem("chartMetric", chartMetricId);
+      } catch {
+        // Private windows can refuse storage; the choice just won't persist.
+      }
+      const data = lastScoreData || {};
+      const ended = /endgame/i.test(data.phase || "");
+      renderScoreCharts(data, lastScorePlayers, data.score?.history || [], ended);
+      return;
+    }
     const col = ev.target.closest("[data-gen]");
     if (!col) return;
     const gen = Number(col.dataset.gen);
@@ -915,11 +1115,30 @@ function bindScoreUi() {
   });
 }
 
+let lastStateText = "";
+let lastLive = false;
+
+/** Replace an element's HTML only when it changed, so a click in progress isn't lost to a no-op rebuild. */
+function setHtml(el, html) {
+  if (!el || el._html === html) return;
+  el.innerHTML = html;
+  el._html = html;
+}
+
 async function tick() {
   try {
     const res = await fetch("/api/state", { cache: "no-store" });
     if (!res.ok) throw new Error(res.status);
-    render(await res.json());
+    const text = await res.text();
+    // Rebuilding the DOM between mousedown and mouseup swallows the click, so skip identical polls.
+    if (text === lastStateText) {
+      setLiveStatus(lastLive ? "live" : "idle");
+      return;
+    }
+    lastStateText = text;
+    const data = JSON.parse(text);
+    lastLive = !!data.live;
+    render(data);
   } catch (err) {
     setLiveStatus("disconnected");
   }

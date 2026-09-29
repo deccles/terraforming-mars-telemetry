@@ -32,7 +32,7 @@ public final class ScoreCalculator {
             Breakdown b = byId.get(player.id);
             byKey.put(String.valueOf(player.id), b);
             if (b != null) {
-                compact.put(String.valueOf(player.id), b.toCompact());
+                compact.put(String.valueOf(player.id), GameState.chartValues(b, player));
             }
         }
         out.put("byId", byKey);

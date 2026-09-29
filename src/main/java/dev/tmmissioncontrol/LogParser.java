@@ -236,9 +236,7 @@ public final class LogParser {
                 PlayerState p = state.player(playerId);
                 p.tr = to;
                 if (from > 0 && to != from) {
-                    int delta = to - from;
-                    String sign = delta > 0 ? "+" : "";
-                    state.addScoreEvent(playerId, "tr", "TR " + from + " → " + to + " (" + sign + delta + ")", delta);
+                    state.addScoreEvent(playerId, "tr", causeFor(p), to - from);
                 }
             }
 
@@ -352,7 +350,10 @@ public final class LogParser {
                 PlayerState claimer = state.player(currentPlayer);
                 if (!claimer.milestones.contains(name)) {
                     claimer.milestones.add(name);
-                    state.addScoreEvent(currentPlayer, "milestone", "+5 " + name, 5);
+                    ScoreEvent event = state.addScoreEvent(currentPlayer, "milestone", "+5 " + name, 5);
+                    if (event != null) {
+                        event.source = "Milestone: " + name;
+                    }
                 }
             }
             m = AWARD.matcher(line);
@@ -360,7 +361,10 @@ public final class LogParser {
                 lastBlueAction = "";
                 String name = m.group(1).trim();
                 state.player(currentPlayer).awards.add(name);
-                state.addScoreEvent(currentPlayer, "award", "funded " + name, 0);
+                ScoreEvent event = state.addScoreEvent(currentPlayer, "award", "funded " + name, 0);
+                if (event != null) {
+                    event.source = "Funded " + name;
+                }
             }
 
             if (line.contains("ShowOpponentCardPage") && state.activePlay != null) {
@@ -487,6 +491,45 @@ public final class LogParser {
         if (production && pendingCorps.size() > 1 && "Unknown".equals(target.corporation)) {
             refineCorpByProduction(target, kind, to);
         }
+        // Every seat starts with production set 0 → 1 before the game begins; that isn't a cause.
+        boolean initialSet = from == 0 && "Setup".equals(state.phase);
+        if (production && to != from && !initialSet && !productionPhase()) {
+            state.addScoreEvent(target.id, "prod-" + prodKey(kind), causeFor(target), to - from);
+        }
+    }
+
+    private static String prodKey(String kind) {
+        return switch (kind) {
+            case "MegaCredit" -> "mc";
+            case "Titanium" -> "ti";
+            default -> kind.toLowerCase();
+        };
+    }
+
+    /** What the log is resolving right now, named for the chart detail. */
+    private String causeFor(PlayerState target) {
+        ActivePlay play = state.activePlay;
+        if (play == null || play.cardName == null || play.cardName.isBlank()) {
+            if (state.generation <= 1 && !"Unknown".equals(target.corporation)) {
+                return target.corporation;
+            }
+            return "Other";
+        }
+        String name = play.cardName;
+        if (name.startsWith("Using ")) {
+            name = name.substring(6) + " action";
+        } else if ("Action".equals(play.colorLabel)) {
+            // setActive strips "Using " from card actions and marks them with the Action label.
+            name = name + " action";
+        } else if (name.startsWith("Standard Project: ")) {
+            name = "Standard project: " + name.substring(18);
+        } else if (name.startsWith("Placing ")) {
+            name = name.substring(8) + " placement";
+        }
+        if (play.playerId != target.id) {
+            name += " (" + state.player(play.playerId).displayName() + ")";
+        }
+        return name;
     }
 
     private void identifyCorpByMc(PlayerState player, int mc) {
@@ -763,6 +806,11 @@ public final class LogParser {
             played.tokenType = cards.tokenType(card);
             played.printedVp = card.vp == null ? 0 : card.vp;
             played.hasRequirement = card.hasRequirement();
+            played.cost = card.cost;
+            if (card.resources != null) played.resources = new java.util.LinkedHashMap<>(card.resources);
+            if (card.production != null) played.production = new java.util.LinkedHashMap<>(card.production);
+            if (card.req != null) played.req = new java.util.LinkedHashMap<>(card.req);
+            if (card.place != null) played.place = List.copyOf(card.place);
             played.project = !"prel".equalsIgnoreCase(card.type)
                     && !"corp".equalsIgnoreCase(card.type)
                     && !card.isEvent();
@@ -776,7 +824,10 @@ public final class LogParser {
         int vp = ScoreCalculator.cardVp(played, player, citiesInPlay());
         if (vp != 0) {
             String sign = vp > 0 ? "+" : "";
-            state.addScoreEvent(playerId, "card", sign + vp + " " + name, vp);
+            ScoreEvent event = state.addScoreEvent(playerId, "card", sign + vp + " " + name, vp);
+            if (event != null) {
+                event.source = name;
+            }
         }
         setActive(playerId, name, null, false);
         setCurrentPlayer(playerId);
@@ -810,7 +861,13 @@ public final class LogParser {
             if (amount < 0 && !lastBlueAction.isBlank()) {
                 label += " (" + lastBlueAction + ")";
             }
-            state.addScoreEvent(owner.id, "token", label, delta);
+            ScoreEvent event = state.addScoreEvent(owner.id, "token", label, delta);
+            if (event != null) {
+                event.source = card.name;
+                event.tokens = amount;
+                event.tokenType = card.tokenType == null ? type : card.tokenType;
+                event.cause = causeFor(owner);
+            }
         }
     }
 

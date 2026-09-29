@@ -143,11 +143,13 @@ public final class GameState {
         return null;
     }
 
-    public void addScoreEvent(int playerId, String kind, String label, int delta) {
+    public ScoreEvent addScoreEvent(int playerId, String kind, String label, int delta) {
         if (playerId <= 0 || label == null || label.isBlank()) {
-            return;
+            return null;
         }
-        scoreEvents.add(new ScoreEvent(generation, playerId, kind, label, delta));
+        ScoreEvent event = new ScoreEvent(generation, playerId, kind, label, delta);
+        scoreEvents.add(event);
+        return event;
     }
 
     public void recordGenerationEnd() {
@@ -196,7 +198,7 @@ public final class GameState {
         for (PlayerState player : seated) {
             ScoreCalculator.Breakdown b = scored.get(player.id);
             if (b != null) {
-                byId.put(String.valueOf(player.id), b.toCompact());
+                byId.put(String.valueOf(player.id), chartValues(b, player));
             }
         }
         Map<String, Object> point = new LinkedHashMap<>();
@@ -204,5 +206,17 @@ public final class GameState {
         point.put("now", now);
         point.put("byId", byId);
         return point;
+    }
+
+    /** Score breakdown plus production, one chart point for one player. */
+    static Map<String, Integer> chartValues(ScoreCalculator.Breakdown b, PlayerState p) {
+        Map<String, Integer> out = b.toCompact();
+        out.put("prod-mc", p.megaCreditProd);
+        out.put("prod-steel", p.steelProd);
+        out.put("prod-ti", p.titaniumProd);
+        out.put("prod-plant", p.plantProd);
+        out.put("prod-energy", p.energyProd);
+        out.put("prod-heat", p.heatProd);
+        return out;
     }
 }
