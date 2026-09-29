@@ -184,7 +184,7 @@ public final class GithubMsiUpdater {
             }
             try {
                 launchInstaller(downloaded);
-                System.exit(0);
+                App.exit(0);
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(null,
                         "Downloaded installer, but couldn't start the updater:\n" + safeMessage(ex) + "\n\n"

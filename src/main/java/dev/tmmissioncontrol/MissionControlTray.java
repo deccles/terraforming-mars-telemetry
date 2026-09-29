@@ -67,7 +67,7 @@ final class MissionControlTray {
 
     private static void quit() {
         remove();
-        System.exit(0);
+        App.exit(0);
     }
 
     private static Image loadIcon() {

@@ -82,11 +82,30 @@ public final class App {
         }
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            MissionControlTray.remove();
             tailer.stop();
             server.stop();
+            // Last: removing the tray icon waits on the AWT thread, which can be wedged in native code.
+            MissionControlTray.remove();
         }));
         thread.join();
+    }
+
+    /**
+     * {@link System#exit} that always finishes. A shutdown hook stuck on the AWT thread (tray icon removal)
+     * would otherwise leave the process running after its port is released.
+     */
+    static void exit(int status) {
+        Thread watchdog = new Thread(() -> {
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            Runtime.getRuntime().halt(status);
+        }, "exit-watchdog");
+        watchdog.setDaemon(true);
+        watchdog.start();
+        System.exit(status);
     }
 
     static Path defaultLog() {

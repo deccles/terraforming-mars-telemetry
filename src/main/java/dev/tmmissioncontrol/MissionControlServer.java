@@ -343,7 +343,7 @@ public final class MissionControlServer {
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
-            System.exit(0);
+            App.exit(0);
         }, "mission-control-handoff");
         stopper.setDaemon(false);
         stopper.start();
