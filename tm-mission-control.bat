@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if not exist "target\tm-mission-control-1.0.8.jar" (
+if not exist "target\tm-mission-control-1.0.9.jar" (
   echo Building TM Mission Control...
   mvn -q package -DskipTests
   if errorlevel 1 (
@@ -10,4 +10,4 @@ if not exist "target\tm-mission-control-1.0.8.jar" (
     exit /b 1
   )
 )
-java -jar "%~dp0target\tm-mission-control-1.0.8.jar" %*
+java -jar "%~dp0target\tm-mission-control-1.0.9.jar" %*
