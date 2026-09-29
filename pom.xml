@@ -82,7 +82,8 @@
         <!-- No spaces, so the file is TMMissionControl-1.0.0.msi -->
         <app.name>TMMissionControl</app.name>
         <app.version>${project.version}</app.version>
-        <jpackage.input.dir>${project.build.directory}\jpackage-input</jpackage.input.dir>
+        <!-- Per version: jpackage ships every jar in this folder, so a shared one piled up old releases. -->
+        <jpackage.input.dir>${project.build.directory}\jpackage-input\${project.version}</jpackage.input.dir>
         <jpackage.dest.dir>${project.basedir}\dist\installer</jpackage.dest.dir>
         <main.jar>${project.build.finalName}.jar</main.jar>
         <vendor>deccles</vendor>
@@ -152,6 +153,10 @@
                     <argument>${win.upgrade.uuid}</argument>
                     <argument>--icon</argument>
                     <argument>${project.basedir}\src\main\resources\tm-mission-control.ico</argument>
+                    <!-- jpackage's default adds strip-native-commands, which drops keytool.exe;
+                         LocalCert needs it to make the HTTPS certificate on a fresh install. -->
+                    <argument>--jlink-options</argument>
+                    <argument>--strip-debug --no-man-pages --no-header-files</argument>
                   </arguments>
                 </configuration>
               </execution>

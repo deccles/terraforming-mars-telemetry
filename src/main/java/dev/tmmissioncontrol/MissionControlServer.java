@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executors;
 
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 
 public final class MissionControlServer {
@@ -65,16 +66,21 @@ public final class MissionControlServer {
         List<String> ips = lanAddresses();
         List<String> wifi = wifiAddresses();
         List<String> certHosts = LanNames.certHosts(ips);
-        boolean https443 = bindHttps(443, certHosts);
-        bindHttps(8080, certHosts);
-        int phonePort = https443 ? 443 : 8080;
+        SSLContext tls = tlsContext(certHosts);
+        boolean https443 = tls != null && bindHttps(443, tls);
+        boolean https8080 = tls != null && bindHttps(8080, tls);
         List<String> urls = new ArrayList<>();
         for (String host : LanNames.phoneHosts(forcedHost)) {
-            addUrl(urls, httpsUrl(host, phonePort));
-            if (phonePort != 443 && https443) {
+            if (https443) {
                 addUrl(urls, httpsUrl(host, 443));
+            } else if (https8080) {
+                addUrl(urls, httpsUrl(host, 8080));
+            } else {
+                // No HTTPS at all: plain HTTP on the desktop port still reaches phones on the same Wi-Fi.
+                addUrl(urls, httpUrl(host, port));
             }
         }
+        int phonePort = https443 ? 443 : https8080 ? 8080 : port;
         addUrl(urls, httpUrl("127.0.0.1", port));
         state.url = urls.get(0);
         state.urls = List.copyOf(urls);
@@ -257,10 +263,23 @@ public final class MissionControlServer {
         }
     }
 
-    private boolean bindHttps(int httpsPort, List<String> certHosts) {
+    /**
+     * Built before any HTTPS port is opened: a failure here used to leave 443 and 8080 bound with no server
+     * behind them, so phones following the QR code timed out.
+     */
+    private static SSLContext tlsContext(List<String> certHosts) {
+        try {
+            return LocalCert.sslContext(certHosts);
+        } catch (Exception ex) {
+            System.err.println("HTTPS certificate unavailable, serving phones over HTTP: " + ex.getMessage());
+            return null;
+        }
+    }
+
+    private boolean bindHttps(int httpsPort, SSLContext tls) {
         try {
             HttpsServer https = HttpsServer.create(new InetSocketAddress("0.0.0.0", httpsPort), 0);
-            https.setHttpsConfigurator(new HttpsConfigurator(LocalCert.sslContext(certHosts)) {
+            https.setHttpsConfigurator(new HttpsConfigurator(tls) {
                 @Override
                 public void configure(HttpsParameters params) {
                     SSLParameters sp = getSSLContext().getDefaultSSLParameters();
@@ -307,20 +326,23 @@ public final class MissionControlServer {
         mdns.clear();
     }
 
-    /** Release the listen sockets before slower teardown, so a restart can bind the port. */
+    /**
+     * Release the listen sockets before slower teardown, so a restart can bind the ports. The desktop port goes
+     * last: a new instance waits for it, then binds 443 and 8080 straight away.
+     */
     private void stopListening() {
-        if (server != null) {
-            server.stop(0);
-            server = null;
-        }
-        if (lanHttp != null) {
-            lanHttp.stop(0);
-            lanHttp = null;
-        }
         for (HttpsServer https : httpsServers) {
             https.stop(0);
         }
         httpsServers.clear();
+        if (lanHttp != null) {
+            lanHttp.stop(0);
+            lanHttp = null;
+        }
+        if (server != null) {
+            server.stop(0);
+            server = null;
+        }
     }
 
     private void shutdown(HttpExchange exchange) throws IOException {
