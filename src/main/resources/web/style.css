@@ -296,6 +296,7 @@ h1.brand { margin: 0; display: flex; align-items: center; gap: 12px; font-weight
 .tag-event { background: #f2d020; }
 .tag-earth { background: #00d0a0; }
 .tag-jovian { background: #c09000; }
+.tag-venus { background: #2aa7e6; }
 .tag-building,
 .tag-space,
 .tag-science,
@@ -305,7 +306,8 @@ h1.brand { margin: 0; display: flex; align-items: center; gap: 12px; font-weight
 .tag-city,
 .tag-event,
 .tag-earth,
-.tag-jovian {
+.tag-jovian,
+.tag-venus {
   clip-path: circle(50%);
 }
 .tag-building::before,
@@ -317,7 +319,8 @@ h1.brand { margin: 0; display: flex; align-items: center; gap: 12px; font-weight
 .tag-city::before,
 .tag-event::before,
 .tag-earth::before,
-.tag-jovian::before {
+.tag-jovian::before,
+.tag-venus::before {
   content: "";
   position: absolute;
   inset: 1.5px;
@@ -333,7 +336,8 @@ h1.brand { margin: 0; display: flex; align-items: center; gap: 12px; font-weight
 .tag-city svg { position: relative; z-index: 1; width: 1.42rem; height: 1.42rem; }
 .tag-event svg { position: relative; z-index: 1; width: 1.05rem; height: 1.05rem; }
 .tag-earth svg,
-.tag-jovian svg { position: relative; z-index: 1; width: 1.25rem; height: 1.25rem; }
+.tag-jovian svg,
+.tag-venus svg { position: relative; z-index: 1; width: 1.25rem; height: 1.25rem; }
 .tag-sym.tag-earth {
   clip-path: circle(50%);
   border-radius: 50%;
@@ -350,7 +354,6 @@ h1.brand { margin: 0; display: flex; align-items: center; gap: 12px; font-weight
   border-radius: 50%;
 }
 .tag-plant svg { position: relative; z-index: 1; width: 1.22rem; height: 1.22rem; }
-.tag-venus { background: #c9a227; color: #1a1208; }
 .tag-wild { background: #7a5aa8; }
 .tag-mars { background: #c45c32; }
 .tag-moon { background: #c8ccd0; color: #243044; }
