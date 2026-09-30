@@ -502,8 +502,7 @@ function applyBannerOpen() {
   $("banner-details").hidden = !bannerOpen;
   $("banner-toggle").setAttribute("aria-expanded", bannerOpen ? "true" : "false");
   const benefit = $("banner-benefit");
-  const has = benefit.innerHTML.trim().length > 0;
-  benefit.hidden = bannerOpen || !has;
+  benefit.hidden = benefit.innerHTML.trim().length === 0;
 }
 
 function bindBannerUi() {
@@ -576,13 +575,8 @@ function renderBanner(data) {
   const play = data.activePlay;
   const banner = $("banner");
   banner.classList.remove("yours", "color-blue", "color-green", "color-purple", "color-yellow", "color-red", "color-black");
-  const drawnKey = play && play.drawn ? play.drawn.map((c) => c.name).join(",") : "";
-  const key = play && play.cardName ? `${play.playerId}:${play.cardName}:${drawnKey}` : "";
-  if (key !== bannerKey) {
-    bannerKey = key;
-    bannerOpen = !!key;
-  }
-
+  const log = data.log || [];
+  let tips = [];
   const placing = placingLabel(play && play.placing);
   const placingEl = $("banner-placing");
   if (placing) {
@@ -597,33 +591,29 @@ function renderBanner(data) {
     const playColor = play.playerColor || (play.yours ? teamColor(data.you) : teamColor((data.opponents || [])[0]));
     banner.classList.add("color-" + (playColor || "blue"));
     if (play.yours) banner.classList.add("yours");
-    $("banner-toggle").disabled = false;
-    $("banner-chevron").hidden = false;
     const who = (play.yours && accountName(data.you)) || play.playerLabel;
     $("banner-kicker").textContent = `${who}${play.colorLabel ? " · " + play.colorLabel : ""}`;
     setHtml($("banner-line"), `<span class="banner-name">${escapeHtml(play.cardName)}</span>${
       play.cost != null ? costSym(play.cost) : ""
     }${(play.tags || []).map(tagIcon).join("")}${renderDrawn(play)}`);
     setHtml($("banner-benefit"), benefitHtml(play));
-    $("banner-effect").textContent = play.effect || "";
-    setHtml($("banner-tips"), (play.remember || []).map((t) => `<li>${escapeHtml(t)}</li>`).join(""));
-    $("game-log").hidden = true;
+    tips = play.remember || [];
   } else {
-    // Between plays the banner opens onto the game log instead.
-    const log = data.log || [];
-    $("banner-toggle").disabled = log.length === 0;
-    $("banner-chevron").hidden = log.length === 0;
     $("banner-kicker").textContent = "No card in flight";
     setHtml($("banner-line"), log.length
       ? `<span class="banner-log-summary">Game log · ${log.length} move${log.length === 1 ? "" : "s"}</span>`
       : "");
     setHtml($("banner-benefit"), "");
-    $("banner-effect").textContent = "";
-    setHtml($("banner-tips"), "");
-    $("game-log").hidden = log.length === 0;
-    lastLogData = data;
-    renderGameLog(data);
   }
+  // Placement tips stay visible under the header; they aren't behind the arrow.
+  setHtml($("banner-tips"), tips.map((t) => `<li>${escapeHtml(t)}</li>`).join(""));
+  $("banner-tips").hidden = tips.length === 0;
+  // The arrow always opens the game log, whether or not a card is in flight.
+  $("banner-toggle").disabled = log.length === 0;
+  $("banner-chevron").hidden = log.length === 0;
+  $("game-log").hidden = log.length === 0;
+  lastLogData = data;
+  renderGameLog(data);
   applyBannerOpen();
 }
 
@@ -1168,7 +1158,6 @@ let lastScorePlayers = [];
 let scoreUiBound = false;
 // Closed until a card is in flight (which opens it) or the game log is opened by hand.
 let bannerOpen = false;
-let bannerKey = "";
 let bannerUiBound = false;
 let corpRulesOpen = false;
 let collapsedBoardIds = new Set();
