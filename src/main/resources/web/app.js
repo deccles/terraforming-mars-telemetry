@@ -62,7 +62,34 @@ function renderCubes(p) {
 }
 
 function renderTrLine(p) {
-  return `<p class="board-tr">TR ${p.tr ?? 20} · Cities on Mars ${p.citiesOnMars ?? 0} · Greeneries ${p.greeneries ?? 0} · Oceans ${p.oceans ?? 0}</p>`;
+  return `<p class="board-tr">TR ${p.tr ?? 20}</p>`;
+}
+
+/** Board tiles as hex icons, colored like the tiles on the app icon. */
+const TILE_ICONS = {
+  city: { fill: "#c8ced6", glyph: '<path fill="#2b3440" d="M7 17V11l3-2v8zm4 0V8l3-2 3 2v9zm2.2-7.5h1.6v1.6h-1.6zm0 3h1.6v1.6h-1.6z"/>' },
+  greenery: { fill: "#2e8c3a", glyph: '<path fill="#e6f5d8" d="M12 6.5 8 13h2.6L8.6 16H11v2h2v-2h2.4l-2-3H16z"/>' },
+  ocean: { fill: "#2876c8", glyph: '<path fill="none" stroke="#e3f1ff" stroke-width="1.5" stroke-linecap="round" d="M7.5 10.5q1.1-1.2 2.25 0t2.25 0 2.25 0 2.25 0M7.5 14q1.1-1.2 2.25 0t2.25 0 2.25 0 2.25 0"/>' },
+  special: { fill: "#8a5a34", glyph: '<path fill="#f3e2cf" d="m12 7.5 1.3 2.8 3 .3-2.3 2 .7 3-2.7-1.6-2.7 1.6.7-3-2.3-2 3-.3z"/>' },
+};
+
+function tileIcon(kind) {
+  const t = TILE_ICONS[kind];
+  return `<span class="tile-sym" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="${t.fill}" stroke="rgba(0,0,0,.45)" stroke-width="1" d="M12 1.8 21 7v10l-9 5.2L3 17V7z"/>${t.glyph}</svg></span>`;
+}
+
+function renderPlacements(p) {
+  const tiles = [
+    ["city", p.citiesOnMars ?? 0, "cities on Mars"],
+    ["greenery", p.greeneries ?? 0, "greeneries"],
+    ["ocean", p.oceans ?? 0, "oceans"],
+  ];
+  if (p.specialTiles) tiles.push(["special", p.specialTiles, "special tiles"]);
+  return `<div class="board-tiles">
+      <h3 class="section-title board-subtitle">Placements</h3>
+      <div class="tags">${tiles.map(([kind, n, label]) =>
+        `<span class="tag-count${n ? "" : " zero"}" title="${n} ${label}">${tileIcon(kind)}<span class="n">${n}</span></span>`).join("")}</div>
+    </div>`;
 }
 
 function renderTags(tags) {
@@ -70,7 +97,7 @@ function renderTags(tags) {
     ? Object.entries(tags).map(([k, v]) =>
       `<span class="tag-count${v ? "" : " zero"}" title="${escapeHtml(k)} ${v}">${tagIcon(k)}<span class="n">${v}</span></span>`)
     : [];
-  return `<div class="tags">${cells.join("")}</div>`;
+  return `<div class="board-tags"><h3 class="section-title board-subtitle">Tags</h3><div class="tags">${cells.join("")}</div></div>`;
 }
 
 function extra(text) {
@@ -257,6 +284,7 @@ function renderPlayer(p, generation) {
       </div>
       ${renderCubes(p)}
       ${renderTrLine(p)}
+      ${renderPlacements(p)}
       ${renderTags(p.tags)}
       <p class="board-awards"></p>
       <div class="board-blues">${renderCards("Blue cards", p.blueCards, "blue", generation)}</div>
@@ -1166,7 +1194,7 @@ function applyBoardUi() {
   alignBoardSections();
 }
 
-const BOARD_ALIGN = [".board-head", ".board-intro", ".board-cubes", ".board-tr", ".tags", ".board-awards"];
+const BOARD_ALIGN = [".board-head", ".board-intro", ".board-cubes", ".board-tr", ".board-tiles", ".board-tags", ".board-awards"];
 
 function alignBoardSections() {
   document.querySelectorAll(BOARD_ALIGN.join(",")).forEach((el) => {
@@ -1295,11 +1323,97 @@ function setHtml(el, html) {
   el._html = html;
 }
 
+/** A saved game being shown instead of the live one; live polling pauses while it's set. */
+let viewingGame = null;
+let liveGameId = "";
+
+function formatPlayedAt(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+async function toggleGamesPanel(open) {
+  const panel = $("games-panel");
+  panel.hidden = !open;
+  $("games-btn").setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  panel.innerHTML = `<p class="games-empty">Loading…</p>`;
+  try {
+    const list = await (await fetch("/api/games", { cache: "no-store" })).json();
+    panel.innerHTML = renderGamesList(list);
+  } catch {
+    panel.innerHTML = `<p class="games-empty">Couldn't load past games.</p>`;
+  }
+}
+
+function renderGamesList(list) {
+  if (!list.length) {
+    return `<p class="games-empty">No saved games yet. Games are saved at the end of each generation.</p>`;
+  }
+  return `<ol class="games-list">${list.map((g) => {
+    const top = Math.max(...g.players.map((p) => p.total));
+    const players = g.players.map((p) => {
+      const name = p.corporation && p.corporation !== "Unknown" ? p.corporation : p.name;
+      const win = g.finished && p.total === top;
+      return `<span class="games-player color-${escapeHtml(p.color || "blue")}${win ? " won" : ""}">${escapeHtml(name)}${
+        p.human ? ` <span class="games-you">you</span>` : ""} <strong>${p.total}</strong></span>`;
+    }).join("");
+    const live = g.gameId === liveGameId ? `<span class="games-tag">current</span>` : "";
+    const status = (g.finished ? "" : `<span class="games-tag">unfinished</span>`)
+      + (g.imported ? `<span class="games-tag" title="Recovered from an older game log; the date is approximate">imported</span>` : "");
+    return `<li><button type="button" class="games-row" data-game-id="${escapeHtml(g.gameId)}">
+        <span class="games-when">${escapeHtml(formatPlayedAt(g.playedAt))}${live}${status}</span>
+        <span class="games-meta">${escapeHtml(g.board || "")} · Gen ${g.generation}</span>
+        <span class="games-players">${players}</span>
+      </button></li>`;
+  }).join("")}</ol>`;
+}
+
+async function viewGame(id) {
+  toggleGamesPanel(false);
+  if (id === liveGameId) {
+    backToLive();
+    return;
+  }
+  try {
+    const res = await fetch(`/api/games/${encodeURIComponent(id)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    viewingGame = await res.json();
+  } catch {
+    return;
+  }
+  render(viewingGame);
+  $("live").textContent = "past game";
+  $("live").classList.remove("on", "bad");
+  const when = formatPlayedAt(viewingGame.playedAt);
+  $("viewing-text").textContent = `Viewing a past game${when ? " from " + when : ""}${viewingGame.finished ? "" : " (unfinished)"}`;
+  $("viewing-bar").hidden = false;
+  window.scrollTo(0, 0);
+}
+
+function backToLive() {
+  viewingGame = null;
+  $("viewing-bar").hidden = true;
+  lastStateText = "";
+  tick();
+}
+
+function bindGamesUi() {
+  $("games-btn").addEventListener("click", () => toggleGamesPanel($("games-panel").hidden));
+  $("games-panel").addEventListener("click", (ev) => {
+    const row = ev.target.closest("[data-game-id]");
+    if (row) viewGame(row.dataset.gameId);
+  });
+  $("viewing-back").addEventListener("click", backToLive);
+}
+
 async function tick() {
+  if (viewingGame) return;
   try {
     const res = await fetch("/api/state", { cache: "no-store" });
     if (!res.ok) throw new Error(res.status);
     const text = await res.text();
+    if (viewingGame) return; // a past game was opened while this poll was in flight
     // Rebuilding the DOM between mousedown and mouseup swallows the click, so skip identical polls.
     if (text === lastStateText) {
       setLiveStatus(lastLive ? "live" : "idle");
@@ -1308,6 +1422,7 @@ async function tick() {
     lastStateText = text;
     const data = JSON.parse(text);
     lastLive = !!data.live;
+    liveGameId = data.gameId || "";
     render(data);
   } catch (err) {
     setLiveStatus("disconnected");
@@ -1321,3 +1436,4 @@ bindBannerUi();
 bindCorpUi();
 bindTipUi();
 bindPhoneAccessUi();
+bindGamesUi();

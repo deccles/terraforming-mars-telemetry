@@ -15,6 +15,7 @@
       </h1>
       <p class="meta" id="meta">Waiting for Player.log…</p>
       <p class="update" id="update" hidden></p>
+      <button type="button" class="games-btn" id="games-btn" aria-expanded="false" aria-controls="games-panel">Past games</button>
     </div>
     <div class="top-right">
       <div class="live" id="live" role="status">idle</div>
@@ -31,6 +32,12 @@
       </div>
     </div>
   </header>
+
+  <section class="games-panel" id="games-panel" hidden></section>
+  <section class="viewing-bar" id="viewing-bar" role="status" hidden>
+    <span id="viewing-text"></span>
+    <button type="button" class="viewing-back" id="viewing-back">Back to live</button>
+  </section>
 
   <section class="banner" id="banner">
     <button type="button" class="banner-summary" id="banner-toggle" aria-expanded="false" disabled>
