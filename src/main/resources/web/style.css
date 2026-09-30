@@ -353,6 +353,7 @@ h1 {
   justify-content: center;
 }
 .res-box svg { width: 0.95rem; height: 0.95rem; display: block; }
+.res-tr .res-box svg { width: 100%; height: 100%; } /* the detailed TR icon needs the whole box */
 .res-sym.prod .res-box { box-shadow: 2px 2px 0 rgba(0,0,0,.35), 0 0 0 2px #e8c84a; }
 .res-mc .res-box,
 .res-steel .res-box { color: #1a1208; }
@@ -371,7 +372,7 @@ h1 {
 }
 .res-energy .res-box { background: #6a3d9a; }
 .res-heat .res-box { background: #d44532; }
-.res-tr .res-box { background: #c44532; }
+.res-tr .res-box { background: linear-gradient(#f59a3a, #d9651c); }
 .res-o2 .res-box { background: #6ea8d4; }
 .res-temp .res-box { background: #d44532; }
 .res-ocean .res-box { background: #3d7ec9; }
@@ -610,6 +611,7 @@ table.cubes th.num, table.cubes td.num {
 }
 table.cubes td.num { font-size: 1.15rem; }
 table.cubes td.prod { color: #f0c27a; }
+table.cubes td.prod.na { color: var(--muted); opacity: 0.6; }
 
 .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; }
 .tag-count { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; font-weight: 650; }
@@ -691,8 +693,7 @@ table.cubes td.prod { color: #f0c27a; }
 .token-floater { background: #6ec9c4; }
 .token-token { background: #e0c27a; }
 .section-title { margin: 16px 0 8px; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; }
-.board-tr, .board-awards { color: var(--muted); }
-.board-tr { margin: 0 0 12px; }
+.board-awards { color: var(--muted); }
 .board-awards { margin: 0; }
 .board-awards:empty { display: block; }
 .milestones {
