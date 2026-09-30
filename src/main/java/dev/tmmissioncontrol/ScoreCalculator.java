@@ -46,7 +46,7 @@ public final class ScoreCalculator {
         }
         out.put("history", state.chartHistory(compact));
         out.put("events", new ArrayList<>(state.scoreEvents));
-        out.put("fundedAwards", fundedAwards(players));
+        out.put("fundedAwards", fundedAwards(state, players));
         return out;
     }
 
@@ -57,7 +57,7 @@ public final class ScoreCalculator {
             byId.put(player.id, scorePlayer(player, citiesInPlay));
         }
         applyBoard(state, byId);
-        applyAwards(players, byId);
+        applyAwards(state, players, byId);
         return byId;
     }
 
@@ -131,7 +131,7 @@ public final class ScoreCalculator {
         byId.values().forEach(Breakdown::retotal);
     }
 
-    private static void applyAwards(List<PlayerState> players, Map<Integer, Breakdown> byId) {
+    private static void applyAwards(GameState state, List<PlayerState> players, Map<Integer, Breakdown> byId) {
         Set<String> funded = new LinkedHashSet<>();
         for (PlayerState player : players) {
             funded.addAll(player.awards);
@@ -140,7 +140,7 @@ public final class ScoreCalculator {
             int[] metrics = new int[players.size()];
             int best = Integer.MIN_VALUE;
             for (int i = 0; i < players.size(); i++) {
-                metrics[i] = awardMetric(award, players.get(i));
+                metrics[i] = awardMetric(award, players.get(i), state);
                 best = Math.max(best, metrics[i]);
             }
             List<Integer> first = new ArrayList<>();
@@ -177,7 +177,7 @@ public final class ScoreCalculator {
         byId.values().forEach(Breakdown::retotal);
     }
 
-    static List<Map<String, Object>> fundedAwards(List<PlayerState> players) {
+    static List<Map<String, Object>> fundedAwards(GameState state, List<PlayerState> players) {
         List<Map<String, Object>> out = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (PlayerState player : players) {
@@ -188,7 +188,7 @@ public final class ScoreCalculator {
                 }
                 List<int[]> ranked = new ArrayList<>();
                 for (int i = 0; i < players.size(); i++) {
-                    ranked.add(new int[] { i, awardMetric(name, players.get(i)) });
+                    ranked.add(new int[] { i, awardMetric(name, players.get(i), state) });
                 }
                 ranked.sort((a, b) -> {
                     int cmp = Integer.compare(b[1], a[1]);
@@ -226,7 +226,7 @@ public final class ScoreCalculator {
         return out;
     }
 
-    private static int awardMetric(String award, PlayerState p) {
+    private static int awardMetric(String award, PlayerState p, GameState state) {
         String key = award.toLowerCase(Locale.ROOT).replace(" ", "");
         return switch (key) {
             case "landlord" -> p.greeneries + p.cities + p.specialTiles;
@@ -239,12 +239,27 @@ public final class ScoreCalculator {
             case "spacebaron" -> p.tags.getOrDefault("space", 0);
             case "excentric" -> p.allCards().stream().mapToInt(c -> c.tokens).sum();
             case "contractor" -> p.tags.getOrDefault("building", 0);
-            case "celebrity" -> p.megaCredits;
-            case "industrialist" -> p.steelProd + p.energyProd;
+            case "celebrity" -> (int) p.allCards().stream()
+                    .filter(c -> c.project && c.cost != null && c.cost >= 20).count();
+            case "industrialist" -> p.steel + p.energy;
+            case "desertsettler" -> ownedTiles(state, p, t -> BoardLayout.southHalf(t.hex));
+            case "estatedealer" -> ownedTiles(state, p, t -> BoardLayout.neighbors(t.hex).stream()
+                    .map(state.tiles::get)
+                    .anyMatch(n -> n != null && n.ocean()));
             case "benefactor" -> p.tr;
             case "venuphile", "venusphile" -> p.tags.getOrDefault("venus", 0);
             default -> 0;
         };
+    }
+
+    private static int ownedTiles(GameState state, PlayerState p, java.util.function.Predicate<PlacedTile> test) {
+        int n = 0;
+        for (PlacedTile tile : state.tiles.values()) {
+            if (tile.ownerId == p.id && BoardLayout.onMars(tile.hex) && test.test(tile)) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static String awardUnit(String award) {
@@ -260,7 +275,7 @@ public final class ScoreCalculator {
             case "spacebaron" -> "space tags";
             case "excentric" -> "resources on cards";
             case "contractor" -> "building tags";
-            case "celebrity" -> "M€";
+            case "celebrity" -> "cards costing 20+ M€";
             case "industrialist" -> "steel + energy";
             case "desertsettler" -> "south tiles";
             case "estatedealer" -> "ocean-adjacent tiles";
@@ -308,13 +323,13 @@ public final class ScoreCalculator {
         if (e.contains("science") && e.contains(":")) {
             return tokens > 0 ? 3 : 0;
         }
-        Matcher frac = Pattern.compile("(\\d+)\\s*/\\s*(\\d+)\\s+(animal|microbe|science|fighter|floater)").matcher(e);
+        Matcher frac = Pattern.compile("(\\d+)\\s*/\\s*(\\d+)\\s+(animal|microbe|science|fighter|floater|asteroid|camp)").matcher(e);
         if (frac.find()) {
             int num = Integer.parseInt(frac.group(1));
             int den = Integer.parseInt(frac.group(2));
             return den == 0 ? 0 : num * (tokens / den);
         }
-        Matcher per = Pattern.compile("(\\d+)\\s*/\\s*(animal|microbe|science|fighter|floater|jovian|venus)").matcher(e);
+        Matcher per = Pattern.compile("(\\d+)\\s*/\\s*(animal|microbe|science|fighter|floater|asteroid|camp|jovian|venus)").matcher(e);
         if (per.find()) {
             int num = Integer.parseInt(per.group(1));
             String kind = per.group(2);

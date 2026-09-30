@@ -185,6 +185,7 @@ const GLOSSARY = {
   polarexplorer: "Requires 3 tiles on the two southernmost rows",
   energizer: "Requires 6 energy production",
   rimsettler: "Requires 3 Jovian tags",
+  hoverlord: "Requires 7 floaters on your cards",
   generalist: "Requires at least 1 production in each of the 6 types",
   specialist: "Requires 10 production in a single type",
   ecologist: "Requires 4 plant, microbe, or animal tags",
@@ -530,8 +531,9 @@ function formatReq(req) {
   if (req.ocean != null) parts.push(`${req.ocean} ocean${Number(req.ocean) === 1 ? "" : "s"}`);
   if (req.venus != null) parts.push(`${req.venus}% Venus`);
   if (req.tr != null) parts.push(`${req.tr} TR`);
+  if (req.note) parts.push(req.note);
   for (const [k, v] of Object.entries(req)) {
-    if (["temp", "o2", "ocean", "venus", "tr"].includes(k) || v == null || v === "") continue;
+    if (["temp", "o2", "ocean", "venus", "tr", "note"].includes(k) || v == null || v === "") continue;
     parts.push(`${k} ${v}`);
   }
   return parts.length ? "Requires " + parts.join(", ") : "";

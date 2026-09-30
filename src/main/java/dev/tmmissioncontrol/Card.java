@@ -28,6 +28,10 @@ public final class Card {
             return false;
         }
         String e = extra.toLowerCase();
+        // "Requires that you lose/spend ..." is a cost (Air Raid), not a requirement.
+        if (e.contains("requires that you lose") || e.contains("requires that you spend")) {
+            return false;
+        }
         return e.contains("it must be") || e.contains("requires that") || e.contains("requires you");
     }
 

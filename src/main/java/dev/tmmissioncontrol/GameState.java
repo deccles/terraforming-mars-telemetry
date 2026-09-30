@@ -20,6 +20,11 @@ public final class GameState {
     public boolean prelude;
     public boolean venus;
     public boolean colonies;
+    /**
+     * False while players are still choosing corporations and starting cards. The game shows no opponent
+     * corporation until then, so neither do we (the AI picks first and its choice is already in the log).
+     */
+    public boolean corpsRevealed = true;
     public int humanId = 1;
     public final List<Integer> playerOrder = new ArrayList<>();
     public final Map<Integer, PlayerState> players = new LinkedHashMap<>();
@@ -52,6 +57,7 @@ public final class GameState {
             prelude = false;
             venus = false;
             colonies = false;
+            corpsRevealed = false;
             humanId = 1;
             playerOrder.clear();
             players.clear();
@@ -86,6 +92,9 @@ public final class GameState {
             PlayerState you = seated.stream().filter(p -> p.human).findFirst()
                     .orElse(players.getOrDefault(humanId, player(humanId)));
             List<PlayerState> table = tableOrder(seated, you);
+            if (!corpsRevealed) {
+                table = table.stream().map(p -> p.id == you.id ? p : p.concealed()).toList();
+            }
             List<PlayerState> opponents = table.stream().filter(p -> p.id != you.id).toList();
             out.put("you", you);
             out.put("opponents", opponents);
@@ -93,7 +102,7 @@ public final class GameState {
             out.put("tiles", new ArrayList<>(tiles.values()));
             out.put("score", ScoreCalculator.estimate(this, table, you));
             out.put("milestones", MilestoneAdvisor.snapshot(this, you, table));
-            out.put("fundedAwards", ScoreCalculator.fundedAwards(table));
+            out.put("fundedAwards", ScoreCalculator.fundedAwards(this, table));
             out.put("updateAvailable", GithubMsiUpdater.availableVersion());
             return out;
         }

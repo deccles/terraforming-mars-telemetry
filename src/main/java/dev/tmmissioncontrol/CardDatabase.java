@@ -17,6 +17,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class CardDatabase {
     private final Map<String, Card> byNormalized = new LinkedHashMap<>();
@@ -210,20 +212,20 @@ public final class CardDatabase {
         }
     }
 
-    public List<String> remember(Card card, String placingType) {
+    public List<String> remember(Card card, String placingType, String board) {
         List<String> tips = new ArrayList<>();
         if (card == null) {
             if (placingType != null) {
-                tips.addAll(placementTips(placingType, null));
+                tips.addAll(placementTips(placingType, null, board));
             }
             return tips;
         }
         String extra = card.extra == null ? "" : card.extra.toLowerCase(Locale.ROOT);
         if (placingType != null && !placingType.isBlank()) {
-            tips.addAll(placementTips(placingType, card));
+            tips.addAll(placementTips(placingType, card, board));
         } else {
             for (String place : card.place) {
-                tips.addAll(placementTips(place, card));
+                tips.addAll(placementTips(place, card, board));
             }
         }
         if (extra.contains("next to no other tile")) {
@@ -272,7 +274,8 @@ public final class CardDatabase {
         return card.extra.replace('\n', ' ').replaceAll("\\s+", " ").trim();
     }
 
-    private static List<String> placementTips(String kind, Card card) {
+    private static List<String> placementTips(String kind, Card card, String board) {
+        String map = board == null ? "" : board.toLowerCase(Locale.ROOT);
         String k = kind.toLowerCase(Locale.ROOT);
         List<String> tips = new ArrayList<>();
         if (k.contains("ocean")) {
@@ -303,7 +306,9 @@ public final class CardDatabase {
             tips.add("Place the city on one of your greeneries (you keep the greenery VP).");
         }
         if (card != null && "Noctis City".equalsIgnoreCase(card.name)) {
-            tips.add("Goes on the reserved Noctis spot, not a normal hex.");
+            tips.add(map.contains("hellas") || map.contains("elysium")
+                    ? "This map has no Noctis spot: place it by the normal city rules."
+                    : "Goes on the reserved Noctis spot, not a normal hex.");
         }
         if (card != null && "Mangrove".equalsIgnoreCase(card.name)) {
             tips.add("Greenery on an ocean-reserved hex. Raises oxygen. Counts as your greenery.");
@@ -312,7 +317,13 @@ public final class CardDatabase {
             tips.add("Greenery on an ocean-reserved hex, plus +2 M€ production.");
         }
         if (card != null && "Lava Flows".equalsIgnoreCase(card.name)) {
-            tips.add("Must be on a volcano: Tharsis Tholus, Ascraeus, Pavonis, or Arsia Mons. +2 temperature.");
+            if (map.contains("hellas")) {
+                tips.add("Hellas has no volcanic areas: place it on any land hex. +2 temperature.");
+            } else if (map.contains("elysium")) {
+                tips.add("Must be on a volcano: Hecates Tholus, Elysium Mons, Olympus Mons, or Arsia Mons. +2 temperature.");
+            } else {
+                tips.add("Must be on a volcano: Tharsis Tholus, Ascraeus, Pavonis, or Arsia Mons. +2 temperature.");
+            }
         }
         return tips;
     }
@@ -357,8 +368,18 @@ public final class CardDatabase {
             return null;
         }
         String extra = card.extra.toLowerCase(Locale.ROOT);
+        Matcher vp = Pattern.compile("vp: \\d+/(?:\\d+ )?(animal|microbe|floater|science|fighter|asteroid|camp) resource").matcher(extra);
+        if (vp.find()) {
+            return vp.group(1);
+        }
         if (extra.contains("fighter")) {
             return "fighter";
+        }
+        if (extra.contains("asteroid resource") || extra.contains("asteroid here")) {
+            return "asteroid";
+        }
+        if (extra.contains("camp resource")) {
+            return "camp";
         }
         if (extra.contains("floater")) {
             return "floater";

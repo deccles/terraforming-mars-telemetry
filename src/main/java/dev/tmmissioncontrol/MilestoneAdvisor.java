@@ -77,6 +77,9 @@ public final class MilestoneAdvisor {
         for (String listed : state.listedMilestones) {
             names.add(displayName(listed));
         }
+        if (state.venus) {
+            names.add("Hoverlord");
+        }
         return List.copyOf(names);
     }
 
@@ -108,6 +111,7 @@ public final class MilestoneAdvisor {
             case "ecologist" -> new Progress(name, tag(p, "plant", "microbe", "animal") + tag(p, "wild"), 4, "bio tags");
             case "tycoon" -> new Progress(name, projectCards(p), 15, "project cards");
             case "legend" -> new Progress(name, p.events.size(), 5, "events");
+            case "hoverlord" -> new Progress(name, floaters(p), 7, "floaters");
             default -> null;
         };
     }
@@ -125,6 +129,16 @@ public final class MilestoneAdvisor {
         for (Map.Entry<String, Integer> e : p.tags.entrySet()) {
             if (e.getValue() != null && e.getValue() > 0) {
                 n++;
+            }
+        }
+        return n;
+    }
+
+    private static int floaters(PlayerState p) {
+        int n = 0;
+        for (PlayedCard card : p.allCards()) {
+            if ("floater".equals(card.tokenType)) {
+                n += card.tokens;
             }
         }
         return n;

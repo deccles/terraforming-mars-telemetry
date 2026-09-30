@@ -54,6 +54,16 @@ public final class PlayerState {
         }
     }
 
+    /** An opponent before corporations are revealed: the seat only, with no corporation, resources or tags. */
+    public PlayerState concealed() {
+        PlayerState seat = new PlayerState(id);
+        seat.name = name;
+        seat.human = human;
+        seat.seated = seated;
+        seat.color = color;
+        return seat;
+    }
+
     public String displayName() {
         if (corporation != null && !corporation.isBlank() && !"Unknown".equals(corporation)) {
             return corporation;

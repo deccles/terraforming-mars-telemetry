@@ -49,6 +49,11 @@ public final class BoardLayout {
         return row >= MAX_Y - 1;
     }
 
+    /** Elysium Desert Settler: tiles on the four southernmost rows, below the equator. */
+    public static boolean southHalf(int hex) {
+        return row(hex) > MAX_Y / 2;
+    }
+
     public static List<Integer> neighbors(int hex) {
         return NEIGHBORS.getOrDefault(hex, List.of());
     }

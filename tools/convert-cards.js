@@ -58,7 +58,7 @@ const cards = Object.entries(raw).map(([key, c]) => {
 
 const extraPath = path.join(__dirname, "expansions.json");
 if (fs.existsSync(extraPath)) {
-  const extra = JSON.parse(fs.readFileSync(extraPath, "utf8"));
+  const extra = require("./expansion-fixes").apply(JSON.parse(fs.readFileSync(extraPath, "utf8")));
   const have = new Set(cards.map((c) => c.key));
   let added = 0;
   for (const card of extra) {

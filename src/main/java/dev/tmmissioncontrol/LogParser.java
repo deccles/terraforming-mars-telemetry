@@ -234,7 +234,11 @@ public final class LogParser {
             }
             m = PHASE.matcher(line);
             if (m.find()) {
-                state.phase = humanPhase(m.group(1));
+                String gamePhase = m.group(1);
+                if (!"InitializationPhase".equals(gamePhase) && !"PlayerSetup".equals(gamePhase)) {
+                    state.corpsRevealed = true;
+                }
+                state.phase = humanPhase(gamePhase);
                 resourcePlayer = 0;
                 if (state.phase.toLowerCase().contains("endgame")) {
                     state.recordGenerationEnd();
@@ -970,9 +974,12 @@ public final class LogParser {
             case "science" -> "science";
             case "fighter", "fighters" -> "fighter";
             case "floater", "floaters" -> "floater";
+            case "asteroid", "asteroids" -> "asteroid";
+            case "camp", "camps" -> "camp";
             default -> rawType.toLowerCase();
         };
-        if (card.tokenType == null || card.tokenType.isBlank()) {
+        // The log names the resource; it beats the guess from card text (Stratospheric Birds mentions floaters).
+        if (!type.isBlank()) {
             card.tokenType = type;
         }
         int cities = citiesInPlay();
@@ -1037,7 +1044,7 @@ public final class LogParser {
         setActive(currentPlayer, "Convert plants", "Greenery", false);
         state.activePlay.colorLabel = "Conversion";
         state.activePlay.effect = "Spend " + plants + " plants to place a greenery.";
-        state.activePlay.remember = new ArrayList<>(cards.remember(null, "Greenery"));
+        state.activePlay.remember = new ArrayList<>(cards.remember(null, "Greenery", state.board));
         if (ecoline) {
             state.activePlay.remember.add(0, "Ecoline: 7 plants instead of 8.");
         }
@@ -1117,7 +1124,7 @@ public final class LogParser {
         play.fromCard(card);
         play.effect = card != null ? cards.cardText(card) : (preview ? "Waiting for confirm." : "");
         play.placing = placing;
-        play.remember.addAll(cards.remember(card, placing));
+        play.remember.addAll(cards.remember(card, placing, state.board));
         if (preview && play.remember.isEmpty()) {
             play.remember.add("Confirming this card.");
         }
@@ -1136,7 +1143,7 @@ public final class LogParser {
                 .replace("Standard Project: ", "")
                 .replace("Placing ", "");
         Card card = cards.find(lookup);
-        state.activePlay.remember = cards.remember(card, kind);
+        state.activePlay.remember = cards.remember(card, kind, state.board);
         if (card != null && (state.activePlay.effect == null || state.activePlay.effect.isBlank())) {
             state.activePlay.effect = cards.cardText(card);
         }
@@ -1191,7 +1198,7 @@ public final class LogParser {
                 .replace("Using ", "")
                 .replace("Standard Project: ", "");
         Card card = cards.find(lookup);
-        state.activePlay.remember = new ArrayList<>(cards.remember(card, null));
+        state.activePlay.remember = new ArrayList<>(cards.remember(card, null, state.board));
     }
 
     private void placeOnBoard(int hex, String kind, String cardName, int playerId) {
@@ -1225,7 +1232,8 @@ public final class LogParser {
             return false;
         }
         String n = cardName.toLowerCase();
-        return n.contains("phobos") || n.contains("ganymede") || n.contains("luna") || n.contains("stanford");
+        return n.contains("phobos") || n.contains("ganymede") || n.contains("luna") || n.contains("stanford")
+                || n.contains("maxwell base") || n.contains("stratopolis") || n.contains("dawn city");
     }
 
     private static String humanPhase(String raw) {
