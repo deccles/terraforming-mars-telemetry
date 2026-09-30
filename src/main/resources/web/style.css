@@ -159,6 +159,8 @@ h1 {
 .log-card.blue { background: var(--blue); }
 .log-card.red { background: var(--red); }
 .log-empty { color: var(--muted); }
+.log-drew { color: var(--muted); }
+.log-drawn-card { color: #f6d9b8; font-style: italic; }
 .tips { margin: 10px 0 0; padding-left: 18px; }
 .tips li { margin: 4px 0; color: #f6d9b8; }
 

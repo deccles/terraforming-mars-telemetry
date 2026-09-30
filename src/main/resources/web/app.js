@@ -96,10 +96,10 @@ function tokenChip(c) {
   return `<span class="token token-${kind}${n ? "" : " zero"}" title="${n} ${label} on this card">${n}</span>`;
 }
 
-/** A player's card section; its header collapses just that section for just that player. */
-function renderCards(title, cards, cls, playerId, generation) {
+/** A player's card section; its header opens or closes that section on every player's board at once. */
+function renderCards(title, cards, cls, generation) {
   if (!cards || !cards.length) return "";
-  const key = `${playerId}:${cls}`;
+  const key = cls;
   const open = !collapsedCardSections.has(key);
   // Blue cards: actions first (what can I still do this generation?), effects after; play order within each.
   const shown = cls === "blue" ? [...cards].sort((a, b) => hasAction(b) - hasAction(a)) : cards;
@@ -259,10 +259,10 @@ function renderPlayer(p, generation) {
       ${renderTrLine(p)}
       ${renderTags(p.tags)}
       <p class="board-awards"></p>
-      <div class="board-blues">${renderCards("Blue cards", p.blueCards, "blue", p.id, generation)}</div>
+      <div class="board-blues">${renderCards("Blue cards", p.blueCards, "blue", generation)}</div>
       <div class="board-rest">
-        ${renderCards("Automated", p.greenCards, "green", p.id, generation)}
-        ${renderCards("Events", p.events, "red", p.id, generation)}
+        ${renderCards("Automated", p.greenCards, "green", generation)}
+        ${renderCards("Events", p.events, "red", generation)}
       </div>
     </div>
   </article>`;
@@ -624,6 +624,14 @@ function logWhat(e) {
   }
 }
 
+/** Cards this move drew (yours only; opponents' draws would reveal their hand). */
+function logDrew(e) {
+  const drawn = e.drawn || [];
+  if (!drawn.length) return "";
+  return ` <span class="log-drew">· drew ${drawn.map((c) =>
+    `<span class="log-drawn-card">${cardPopover(c, c.name)}</span>`).join(", ")}</span>`;
+}
+
 /** Every move so far, newest first, grouped by generation; filterable to one player. */
 function renderGameLog(data) {
   const players = tablePlayers(data);
@@ -640,7 +648,7 @@ function renderGameLog(data) {
     if (!groups.length || groups[groups.length - 1].gen !== e.generation) groups.push({ gen: e.generation, rows: [] });
     const p = byId.get(e.playerId);
     groups[groups.length - 1].rows.push(`<li class="log-entry color-${p ? teamColor(p) : "blue"}">
-        <span class="log-who">${escapeHtml(p ? displayName(p, "P" + p.id) : "P" + e.playerId)}</span> ${logWhat(e)}
+        <span class="log-who">${escapeHtml(p ? displayName(p, "P" + p.id) : "P" + e.playerId)}</span> ${logWhat(e)}${logDrew(e)}
       </li>`);
   }
   setHtml($("game-log"), `<div class="log-filters">${filters.join("")}</div>`
@@ -1008,10 +1016,14 @@ function cardEffects(card) {
 
 /** A chart label, with a card popover when it names a played card ("X", "X action", "X (Player)"). */
 function cardRef(label) {
-  const text = escapeHtml(label);
   const m = String(label).match(/^(.*?)(?: action)?(?: \([^)]*\))?$/);
   const card = m && chartCards.get(m[1].toLowerCase());
-  if (!card) return text;
+  return card ? cardPopover(card, label) : escapeHtml(label);
+}
+
+/** `label` with a hover/tap popover describing `card` (a played card, or a drawn card from the server). */
+function cardPopover(card, label) {
+  const text = escapeHtml(label);
   const body = String(card.extra || "").split("\n")
     .map((line) => line.trim())
     .filter((line) => line && !/^-+$/.test(line))
@@ -1019,7 +1031,8 @@ function cardRef(label) {
   const tags = (card.tags || []).map(tagIcon).join("");
   const cost = card.cost != null ? costSym(card.cost) : "";
   const { req, gains, places } = cardEffects(card);
-  const vp = card.printedVp ? `<span class="tip-card-vp">${card.printedVp} VP</span>` : "";
+  const printedVp = card.printedVp ?? card.vp; // played cards carry printedVp, drawn cards vp
+  const vp = printedVp ? `<span class="tip-card-vp">${printedVp} VP</span>` : "";
   const tokens = card.tokens ? `<span class="tip-card-vp">${card.tokens} ${tokenWord(card.tokenType, card.tokens)} now</span>` : "";
   const pop = `<span class="tip-card-head"><strong>${escapeHtml(card.name)}</strong>${cost}${tags}</span>`
     + (req ? `<span class="tip-card-req">${escapeHtml(req)}</span>` : "")
@@ -1125,7 +1138,7 @@ let bannerKey = "";
 let bannerUiBound = false;
 let corpRulesOpen = false;
 let collapsedBoardIds = new Set();
-/** "playerId:section" for each collapsed card section (blue, green, red). */
+/** Collapsed card sections (blue, green, red); each applies to every player's board. */
 let collapsedCardSections = new Set();
 let corpUiBound = false;
 let lastGameId = "";
@@ -1187,14 +1200,20 @@ function bindCorpUi() {
   $("boards").addEventListener("click", (ev) => {
     const section = ev.target.closest(".cards-toggle");
     if (section) {
+      // When boards stack (narrow screens, 4-5 players), sections above the clicked one change height too;
+      // keep the clicked header where it was so the page doesn't jump out from under the pointer.
+      const before = section.getBoundingClientRect().top;
       const key = section.dataset.cards;
       const open = collapsedCardSections.has(key);
       if (open) collapsedCardSections.delete(key);
       else collapsedCardSections.add(key);
-      section.setAttribute("aria-expanded", String(open));
-      const cards = section.closest(".cards-title")?.nextElementSibling;
-      if (cards) cards.hidden = !open;
+      document.querySelectorAll(`.cards-toggle[data-cards="${key}"]`).forEach((btn) => {
+        btn.setAttribute("aria-expanded", String(open));
+        const cards = btn.closest(".cards-title")?.nextElementSibling;
+        if (cards) cards.hidden = !open;
+      });
       alignBoardSections();
+      window.scrollBy(0, section.getBoundingClientRect().top - before);
       return;
     }
     const info = ev.target.closest(".corp-info");
