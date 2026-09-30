@@ -19,6 +19,8 @@ public final class PlayedCard {
     public String tokenType;
     public int tokens;
     public int printedVp;
+    /** Generation this blue card's action was last used; the page dims it for the rest of that generation. */
+    public int actionUsedGen;
     /** Printed effects the catalog keeps as data rather than text, for card popovers. */
     public Map<String, Object> resources = new LinkedHashMap<>();
     public Map<String, Object> production = new LinkedHashMap<>();

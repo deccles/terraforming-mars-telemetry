@@ -26,6 +26,7 @@ public final class GameState {
     public final Map<Integer, PlacedTile> tiles = new LinkedHashMap<>();
     public final List<Map<String, Object>> scoreHistory = new ArrayList<>();
     public final List<ScoreEvent> scoreEvents = new ArrayList<>();
+    public final List<LogEntry> playLog = new ArrayList<>();
     public final Set<String> listedMilestones = new LinkedHashSet<>();
     public ActivePlay activePlay;
 
@@ -49,6 +50,7 @@ public final class GameState {
             tiles.clear();
             scoreHistory.clear();
             scoreEvents.clear();
+            playLog.clear();
             listedMilestones.clear();
             activePlay = null;
             player(1);
@@ -68,6 +70,7 @@ public final class GameState {
             out.put("phase", phase);
             out.put("live", live);
             out.put("activePlay", activePlay);
+            out.put("log", new ArrayList<>(playLog));
             List<PlayerState> seated = seatedPlayers();
             PlayerState you = seated.stream().filter(p -> p.human).findFirst()
                     .orElse(players.getOrDefault(humanId, player(humanId)));
@@ -150,6 +153,13 @@ public final class GameState {
         ScoreEvent event = new ScoreEvent(generation, playerId, kind, label, delta);
         scoreEvents.add(event);
         return event;
+    }
+
+    public void addLog(int playerId, String kind, String name, String color) {
+        if (playerId <= 0 || name == null || name.isBlank()) {
+            return;
+        }
+        playLog.add(new LogEntry(generation, playerId, kind, name.trim(), color));
     }
 
     public void recordGenerationEnd() {

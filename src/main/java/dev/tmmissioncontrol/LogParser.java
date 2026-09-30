@@ -65,6 +65,7 @@ public final class LogParser {
             "\\[PlayerAction] Playing(?: action)? \\([\\d.]+\\) DrawCardPlayerAction");
     private static final Pattern ADDING_HAND_CARD = Pattern.compile(
             "\\[PlayerAction] Adding action \\([\\d.]+\\) CardPlayerAction Card: (.+)$");
+    private static final Pattern STAMP = Pattern.compile("^\\[([\\d.,]+)]");
 
     private final CardDatabase cards;
     private final GameState state;
@@ -82,6 +83,7 @@ public final class LogParser {
     private String lastBlueAction = "";
     private boolean collectDraws;
     private String pendingHandCard = "";
+    private String lastLogKey = "";
     private final java.util.Map<Integer, String> steamCorps = new java.util.HashMap<>();
 
     public LogParser(CardDatabase cards, GameState state) {
@@ -138,6 +140,7 @@ public final class LogParser {
                 lastBlueAction = "";
                 collectDraws = false;
                 pendingHandCard = "";
+                lastLogKey = "";
                 steamCorps.clear();
                 return;
             }
@@ -299,22 +302,27 @@ public final class LogParser {
                 pendingHandCard = "";
                 lastBlueAction = "";
                 setActive(currentPlayer, "Standard Project: " + m.group(2).trim(), null, false);
+                logMove(line, currentPlayer, "project", m.group(2).trim(), "");
             }
 
             m = BLUE_ACTION.matcher(line);
             if (m.find() && !line.contains("Adding action")) {
                 lastBlueAction = cards.displayName(m.group(2).trim());
+                markActionUsed(m.group(2).trim());
+                logMove(line, currentPlayer, "action", lastBlueAction, "");
                 setActive(currentPlayer, "Using " + m.group(2).trim(), null, false);
             }
             m = CORP_ACTION.matcher(line);
             if (m.find() && !line.contains("Adding action")) {
                 lastBlueAction = "";
                 setActive(currentPlayer, "Using " + m.group(2).trim(), null, false);
+                logMove(line, currentPlayer, "corp-action", m.group(2).trim(), "");
             }
             m = CONVERSION.matcher(line);
             if (m.find() && !line.contains("Adding action")) {
                 lastBlueAction = "";
                 startConversion(m.group(2));
+                logMove(line, currentPlayer, "convert", m.group(2), "");
             }
             m = PLACE_TILE_ACTION.matcher(line);
             if (m.find()) {
@@ -354,6 +362,7 @@ public final class LogParser {
                     if (event != null) {
                         event.source = "Milestone: " + name;
                     }
+                    state.addLog(currentPlayer, "milestone", name, "");
                 }
             }
             m = AWARD.matcher(line);
@@ -365,6 +374,7 @@ public final class LogParser {
                 if (event != null) {
                     event.source = "Funded " + name;
                 }
+                logMove(line, currentPlayer, "award", name, "");
             }
 
             if (line.contains("ShowOpponentCardPage") && state.activePlay != null) {
@@ -821,6 +831,7 @@ public final class LogParser {
             played.project = true;
         }
         player.addCard(played);
+        state.addLog(playerId, "card", name, played.color);
         int vp = ScoreCalculator.cardVp(played, player, citiesInPlay());
         if (vp != 0) {
             String sign = vp > 0 ? "+" : "";
@@ -831,6 +842,36 @@ public final class LogParser {
         }
         setActive(playerId, name, null, false);
         setCurrentPlayer(playerId);
+    }
+
+    /**
+     * The game writes most moves twice, on lines with the same timestamp ("Playing action (5) ..." then
+     * "Playing (5) ..."); log a move once per timestamp so a real repeat (two City projects) still counts.
+     */
+    private void logMove(String line, int playerId, String kind, String name, String color) {
+        Matcher ts = STAMP.matcher(line);
+        String key = (ts.find() ? ts.group(1) : "") + "|" + playerId + "|" + kind + "|" + name;
+        if (key.equals(lastLogKey)) {
+            return;
+        }
+        lastLogKey = key;
+        state.addLog(playerId, kind, name, color);
+    }
+
+    /**
+     * A blue card belongs to one player, so match by name across the table. The log's number in
+     * "Playing action (129) Blue Card Action : ..." is an action id, not the card number.
+     */
+    private void markActionUsed(String rawName) {
+        String want = CardDatabase.normalize(cards.displayName(rawName));
+        for (PlayerState player : state.players.values()) {
+            for (PlayedCard card : player.blueCards) {
+                if (CardDatabase.normalize(card.name).equals(want)) {
+                    card.actionUsedGen = state.generation;
+                    return;
+                }
+            }
+        }
     }
 
     private void addCardTokens(int cardNumber, String rawType, int amount) {
