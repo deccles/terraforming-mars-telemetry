@@ -29,6 +29,8 @@ public final class GameState {
     public final List<LogEntry> playLog = new ArrayList<>();
     public final Set<String> listedMilestones = new LinkedHashSet<>();
     public ActivePlay activePlay;
+    /** Save this game to Past games as it goes. Off for games replayed only to import them. */
+    public boolean autoSave = true;
 
     public PlayerState player(int id) {
         return players.computeIfAbsent(id, PlayerState::new);
@@ -36,6 +38,8 @@ public final class GameState {
 
     public void reset() {
         synchronized (lock) {
+            // A game quit partway has no game-end save; keep what we have before it's wiped.
+            GameArchive.save(this);
             gameId = "";
             board = "Tharsis";
             generation = 1;
@@ -168,14 +172,14 @@ public final class GameState {
             return;
         }
         Map<String, Object> point = compactPoint(generation, seated, false);
-        if (!scoreHistory.isEmpty()) {
-            Object lastGen = scoreHistory.get(scoreHistory.size() - 1).get("generation");
-            if (Integer.valueOf(generation).equals(lastGen)) {
-                scoreHistory.set(scoreHistory.size() - 1, point);
-                return;
-            }
+        Object lastGen = scoreHistory.isEmpty() ? null : scoreHistory.get(scoreHistory.size() - 1).get("generation");
+        if (Integer.valueOf(generation).equals(lastGen)) {
+            scoreHistory.set(scoreHistory.size() - 1, point);
+        } else {
+            scoreHistory.add(point);
         }
-        scoreHistory.add(point);
+        // Each generation end (and game end, which comes through here) updates the saved copy of this game.
+        GameArchive.save(this);
     }
 
     List<Map<String, Object>> chartHistory(Map<String, Map<String, Integer>> liveById) {

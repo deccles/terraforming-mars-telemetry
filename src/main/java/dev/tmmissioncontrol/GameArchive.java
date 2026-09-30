@@ -1,0 +1,228 @@
+package dev.tmmissioncontrol;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+/**
+ * Past games, one file each in %LOCALAPPDATA%\TM Mission Control\games\&lt;game id&gt;.json. A file holds the same
+ * snapshot the page gets for a live game, so a past game renders with the same code (boards, charts, log).
+ */
+final class GameArchive {
+    /** Off for --once dumps; on for the running app. */
+    static volatile boolean enabled;
+
+    private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+    /** Only meaningful while the app runs; a saved game shouldn't carry them. */
+    private static final List<String> LIVE_ONLY = List.of(
+            "url", "urls", "firewallOpen", "updateAvailable", "activePlay");
+
+    private GameArchive() {
+    }
+
+    static Path dir() throws IOException {
+        Path dir = LocalCert.dir().resolve("games");
+        Files.createDirectories(dir);
+        return dir;
+    }
+
+    /** Game ids come from the log; keep them to a safe file name. */
+    static String fileId(String gameId) {
+        return gameId == null ? "" : gameId.trim().replaceAll("[^A-Za-z0-9_-]", "");
+    }
+
+    /** Called with the state lock held (generation end, game end, before a new game resets the state). */
+    static void save(GameState state) {
+        if (!enabled || !state.autoSave) {
+            return;
+        }
+        write(state, null, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void write(GameState state, String playedAt, boolean imported) {
+        String id = fileId(state.gameId);
+        if (id.isEmpty() || state.playLog.isEmpty()) {
+            return;
+        }
+        try {
+            Path file = dir().resolve(id + ".json");
+            Map<String, Object> snap = new LinkedHashMap<>((Map<String, Object>) state.snapshot());
+            LIVE_ONLY.forEach(snap::remove);
+            snap.put("live", false);
+            snap.put("finished", state.phase != null && state.phase.toLowerCase().contains("endgame"));
+            // Keep the first time we saw the game; later saves of the same game only refresh savedAt.
+            snap.put("playedAt", playedAt != null ? playedAt : firstPlayedAt(file));
+            snap.put("savedAt", Instant.now().toString());
+            if (imported) {
+                snap.put("imported", true);
+            }
+            Path tmp = file.resolveSibling(id + ".json.tmp");
+            Files.writeString(tmp, GSON.toJson(snap), StandardCharsets.UTF_8);
+            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (Exception ex) {
+            System.err.println("Could not save game " + id + ": " + ex.getMessage());
+        }
+    }
+
+    private static String firstPlayedAt(Path file) {
+        try {
+            if (Files.exists(file)) {
+                JsonObject old = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+                if (old.has("playedAt") && !old.get("playedAt").isJsonNull()) {
+                    return old.get("playedAt").getAsString();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return Instant.now().toString();
+    }
+
+    /**
+     * Save games from the other logs in the game's log folder: Player-prev.log (the game before a relaunch,
+     * which is lost if Mission Control wasn't running) and any copies. Player.log itself is the live tailer's.
+     * Each file is replayed once per size and timestamp; games already saved are left alone.
+     */
+    static void importLogs(Path logDir, Path liveLog, CardDatabase cards) {
+        if (logDir == null || !Files.isDirectory(logDir)) {
+            return;
+        }
+        try (Stream<Path> files = Files.list(logDir)) {
+            Path marker = dir().resolve("imported-logs.txt");
+            List<String> done = Files.exists(marker) ? Files.readAllLines(marker, StandardCharsets.UTF_8) : new ArrayList<>();
+            for (Path file : files.filter(f -> f.getFileName().toString().toLowerCase().endsWith(".log")).toList()) {
+                if (file.equals(liveLog)) {
+                    continue;
+                }
+                String stamp = file.getFileName() + "|" + Files.size(file) + "|" + Files.getLastModifiedTime(file).toMillis();
+                if (done.contains(stamp)) {
+                    continue;
+                }
+                int saved = importLog(file, cards);
+                System.out.println("Imported " + saved + " past game(s) from " + file.getFileName());
+                done.add(stamp);
+                Files.write(marker, done, StandardCharsets.UTF_8);
+            }
+        } catch (Exception ex) {
+            System.err.println("Past-game import stopped: " + ex.getMessage());
+        }
+    }
+
+    /** Replays each game in `file` on its own and saves the ones not already saved. Returns how many. */
+    static int importLog(Path file, CardDatabase cards) throws IOException {
+        List<GameState> games = new ArrayList<>();
+        GameState game = null;
+        LogParser parser = null;
+        // InputStreamReader replaces bad bytes instead of failing like Files.newBufferedReader would.
+        try (var reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.contains("Created new Game")) {
+                    game = new GameState();
+                    game.autoSave = false;
+                    parser = new LogParser(cards, game);
+                    games.add(game);
+                }
+                if (parser != null) {
+                    parser.consume(line);
+                }
+            }
+        }
+        // The log has no dates: order imported games by position, ending at the file's timestamp.
+        Instant end = Files.getLastModifiedTime(file).toInstant();
+        int saved = 0;
+        for (int i = 0; i < games.size(); i++) {
+            GameState g = games.get(i);
+            String id = fileId(g.gameId);
+            if (id.isEmpty() || g.playLog.isEmpty() || Files.exists(dir().resolve(id + ".json"))) {
+                continue;
+            }
+            synchronized (g.lock()) {
+                write(g, end.minusSeconds(60L * (games.size() - 1 - i)).toString(), true);
+            }
+            saved++;
+        }
+        return saved;
+    }
+
+    /** One line per saved game for the picker, newest first. */
+    static List<Map<String, Object>> list() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        try (Stream<Path> files = Files.list(dir())) {
+            for (Path file : files.filter(f -> f.toString().endsWith(".json")).toList()) {
+                try {
+                    out.add(summary(JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject()));
+                } catch (Exception ex) {
+                    System.err.println("Skipping unreadable saved game " + file.getFileName() + ": " + ex.getMessage());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        out.sort(Comparator.comparing((Map<String, Object> m) -> String.valueOf(m.get("playedAt"))).reversed());
+        return out;
+    }
+
+    private static Map<String, Object> summary(JsonObject game) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("gameId", str(game, "gameId"));
+        s.put("playedAt", str(game, "playedAt"));
+        s.put("board", str(game, "board"));
+        s.put("generation", game.has("generation") ? game.get("generation").getAsInt() : 0);
+        s.put("finished", game.has("finished") && game.get("finished").getAsBoolean());
+        s.put("imported", game.has("imported") && game.get("imported").getAsBoolean());
+        JsonObject byId = game.has("score") && game.getAsJsonObject("score").has("byId")
+                ? game.getAsJsonObject("score").getAsJsonObject("byId") : new JsonObject();
+        List<Map<String, Object>> players = new ArrayList<>();
+        if (game.has("players")) {
+            for (JsonElement el : game.getAsJsonArray("players")) {
+                JsonObject p = el.getAsJsonObject();
+                String pid = String.valueOf(p.get("id").getAsInt());
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", p.get("id").getAsInt());
+                row.put("corporation", str(p, "corporation"));
+                row.put("name", str(p, "name"));
+                row.put("color", str(p, "color"));
+                row.put("human", p.has("human") && p.get("human").getAsBoolean());
+                row.put("total", byId.has(pid) && byId.getAsJsonObject(pid).has("total")
+                        ? byId.getAsJsonObject(pid).get("total").getAsInt() : 0);
+                players.add(row);
+            }
+        }
+        s.put("players", players);
+        return s;
+    }
+
+    private static String str(JsonObject o, String key) {
+        return o.has(key) && !o.get(key).isJsonNull() ? o.get(key).getAsString() : "";
+    }
+
+    /** The saved snapshot as JSON, or null. */
+    static byte[] load(String gameId) {
+        String id = fileId(gameId);
+        if (id.isEmpty()) {
+            return null;
+        }
+        try {
+            Path file = dir().resolve(id + ".json");
+            return Files.exists(file) ? Files.readAllBytes(file) : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+}

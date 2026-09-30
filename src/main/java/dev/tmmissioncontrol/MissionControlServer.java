@@ -104,6 +104,7 @@ public final class MissionControlServer {
         http.createContext("/api/state", this::state);
         http.createContext("/api/shutdown", this::shutdown);
         http.createContext("/api/firewall/fix", this::fixFirewall);
+        http.createContext("/api/games", this::games);
         http.createContext("/qr.svg", this::qr);
         http.createContext("/", this::staticFile);
     }
@@ -388,6 +389,29 @@ public final class MissionControlServer {
         state.firewallOpen = open;
         byte[] body = ("{\"open\":" + open + "}").getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+        exchange.sendResponseHeaders(200, body.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(body);
+        }
+    }
+
+    /** GET /api/games lists saved games; GET /api/games/{id} returns one, in the same shape as /api/state. */
+    private void games(HttpExchange exchange) throws IOException {
+        if (!"GET".equals(exchange.getRequestMethod())) {
+            exchange.sendResponseHeaders(405, -1);
+            return;
+        }
+        String path = exchange.getRequestURI().getPath();
+        String id = path.length() > "/api/games/".length() ? path.substring("/api/games/".length()) : "";
+        byte[] body = id.isEmpty()
+                ? gson.toJson(GameArchive.list()).getBytes(StandardCharsets.UTF_8)
+                : GameArchive.load(id);
+        if (body == null) {
+            exchange.sendResponseHeaders(404, -1);
+            return;
+        }
+        exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+        exchange.getResponseHeaders().add("Cache-Control", "no-store");
         exchange.sendResponseHeaders(200, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);

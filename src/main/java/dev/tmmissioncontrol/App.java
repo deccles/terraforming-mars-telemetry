@@ -47,10 +47,20 @@ public final class App {
 
         MissionControlServer.takeOver(port);
 
+        // The startup replay of Player.log saves the most recent game too, so it shows up under Past games.
+        GameArchive.enabled = true;
         LogTailer tailer = new LogTailer(logFile, parser);
         Thread thread = new Thread(tailer, "player-log-tailer");
         thread.setDaemon(true);
         thread.start();
+
+        // Games in the other logs (Player-prev.log after a relaunch, saved copies) go to Past games too.
+        Path liveLog = logFile;
+        Thread importer = new Thread(() -> GameArchive.importLogs(liveLog.toAbsolutePath().getParent(),
+                liveLog.toAbsolutePath(), cards), "past-game-import");
+        importer.setDaemon(true);
+        importer.setPriority(Thread.MIN_PRIORITY);
+        importer.start();
 
         MissionControlServer.stopHotspot();
         MissionControlServer server = new MissionControlServer(state, port, host);
