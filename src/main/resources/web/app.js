@@ -308,9 +308,7 @@ function renderMilestones(data) {
   const claimed = ms.claimed || [];
   const grab = ms.grab || [];
   const close = ms.close || [];
-  const left = ms.left ?? Math.max(0, 3 - claimed.length);
   $("ms-claimed-kicker").textContent = "Claimed";
-  $("ms-left").textContent = left === 0 ? "All 3 taken" : `${left} still open`;
   setHtml($("ms-claimed"), claimed.length
     ? claimed.map((c) => tipWrap(c.name,
       `<span class="name">${escapeHtml(c.name)}</span>` +

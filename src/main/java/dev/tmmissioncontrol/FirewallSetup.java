@@ -10,7 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 final class FirewallSetup {
-    static final String APP_RULE = "TM Mission Control app";
+    static final String APP_RULE = "Terraforming Mars Telemetry app";
 
     private FirewallSetup() {
     }
@@ -24,7 +24,7 @@ final class FirewallSetup {
     }
 
     /**
-     * The executable Windows sees listening: TMMissionControl.exe when installed (its bundled runtime has no
+     * The executable Windows sees listening: "Terraforming Mars Telemetry.exe" when installed (its bundled runtime has no
      * java.exe), or java.exe / javaw.exe for a development run.
      */
     static Path appExe() {
@@ -71,18 +71,18 @@ final class FirewallSetup {
             return true;
         }
         String message = """
-                Let phones on your Wi-Fi open Mission Control?
+                Let phones on your Wi-Fi open Terraforming Mars Telemetry?
 
                 Scanning the QR code needs Windows Firewall to let this app accept
                 connections. Windows will ask for administrator permission next.
 
-                If you choose Not now, you can allow it later from the Mission Control page.""";
+                If you choose Not now, you can allow it later from the Terraforming Mars Telemetry page.""";
         Object[] options = {"Allow", "Not now"};
         JOptionPane pane = new JOptionPane(message, JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION,
                 null, options, options[0]);
         try {
             SwingUtilities.invokeAndWait(() -> {
-                JDialog dialog = pane.createDialog(null, "TM Mission Control");
+                JDialog dialog = pane.createDialog(null, "Terraforming Mars Telemetry");
                 dialog.setAlwaysOnTop(true);
                 dialog.setVisible(true);
                 dialog.dispose();
@@ -183,11 +183,16 @@ final class FirewallSetup {
                 netsh advfirewall firewall delete rule name="TM Mission Control Java" >nul 2>nul
                 netsh advfirewall firewall delete rule name="TM Mission Control Java UDP" >nul 2>nul
                 netsh advfirewall firewall delete rule name="TM Mission Control mDNS" >nul 2>nul
+                netsh advfirewall firewall delete rule name="TM Mission Control app" >nul 2>nul
+                netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry" >nul 2>nul
+                netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry HTTPS" >nul 2>nul
+                netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry 8080" >nul 2>nul
+                netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry mDNS" >nul 2>nul
                 netsh advfirewall firewall delete rule name="%1$s" >nul 2>nul
                 powershell -NoProfile -Command "$exe='%3$s'; Get-NetFirewallApplicationFilter | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -ieq $exe } | Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' } | Remove-NetFirewallRule"
-                netsh advfirewall firewall add rule name="TM Mission Control" dir=in action=allow protocol=TCP localport=443,8080,8765 profile=any enable=yes
-                netsh advfirewall firewall add rule name="TM Mission Control HTTPS" dir=in action=allow protocol=TCP localport=443 profile=any enable=yes
-                netsh advfirewall firewall add rule name="TM Mission Control mDNS" dir=in action=allow protocol=UDP localport=5353 profile=any enable=yes
+                netsh advfirewall firewall add rule name="Terraforming Mars Telemetry" dir=in action=allow protocol=TCP localport=443,8080,8765 profile=any enable=yes
+                netsh advfirewall firewall add rule name="Terraforming Mars Telemetry HTTPS" dir=in action=allow protocol=TCP localport=443 profile=any enable=yes
+                netsh advfirewall firewall add rule name="Terraforming Mars Telemetry mDNS" dir=in action=allow protocol=UDP localport=5353 profile=any enable=yes
                 netsh advfirewall firewall add rule name="%1$s" dir=in action=allow program="%2$s" protocol=TCP profile=any enable=yes
                 netsh advfirewall firewall add rule name="%1$s" dir=in action=allow program="%2$s" protocol=UDP profile=any enable=yes
                 """.formatted(APP_RULE, exe, psExe);

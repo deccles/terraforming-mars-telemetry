@@ -41,7 +41,7 @@ final class MissionControlTray {
         menu.add(open);
         menu.add(quit);
 
-        TrayIcon trayIcon = new TrayIcon(image, "TM Mission Control", menu);
+        TrayIcon trayIcon = new TrayIcon(image, "Terraforming Mars Telemetry", menu);
         trayIcon.setImageAutoSize(true);
         trayIcon.addActionListener(e -> browse(openUri));
         try {

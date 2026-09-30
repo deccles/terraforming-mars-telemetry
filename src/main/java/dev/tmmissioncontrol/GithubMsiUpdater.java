@@ -37,12 +37,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class GithubMsiUpdater {
     private static final String OWNER = "deccles";
-    private static final String REPO = "tm-mission-control";
+    private static final String REPO = "terraforming-mars-telemetry";
     private static final String MAVEN_GROUP_ID = "dev.tmmissioncontrol";
-    private static final String MAVEN_ARTIFACT_ID = "tm-mission-control";
+    private static final String MAVEN_ARTIFACT_ID = "terraforming-mars-telemetry";
     /** Must match {@code jpackage --name}. */
-    private static final String INSTALL_DIR_NAME = "TMMissionControl";
-    private static final String EXE_NAME = "TMMissionControl.exe";
+    private static final String INSTALL_DIR_NAME = "Terraforming Mars Telemetry";
+    private static final String EXE_NAME = "Terraforming Mars Telemetry.exe";
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(20);
 
     private static final AtomicReference<String> AVAILABLE = new AtomicReference<>();
@@ -236,7 +236,7 @@ public final class GithubMsiUpdater {
         Files.createDirectories(updaterDir);
         String safeName = toSafeFilename(msiName);
         if (safeName == null || safeName.isBlank()) {
-            safeName = "TMMissionControl-Update.msi";
+            safeName = "TerraformingMarsTelemetry-Update.msi";
         }
         if (!safeName.toLowerCase(Locale.ROOT).endsWith(".msi")) {
             safeName = safeName + ".msi";
@@ -253,7 +253,7 @@ public final class GithubMsiUpdater {
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofMinutes(10))
-                .header("User-Agent", "TM-Mission-Control-Updater")
+                .header("User-Agent", "Terraforming-Mars-Telemetry-Updater")
                 .GET()
                 .build();
         HttpResponse<InputStream> resp = client.send(req, HttpResponse.BodyHandlers.ofInputStream());
@@ -309,7 +309,7 @@ public final class GithubMsiUpdater {
                 .uri(URI.create(api))
                 .timeout(HTTP_TIMEOUT)
                 .header("Accept", "application/vnd.github+json")
-                .header("User-Agent", "TM-Mission-Control-Updater")
+                .header("User-Agent", "Terraforming-Mars-Telemetry-Updater")
                 .GET()
                 .build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));

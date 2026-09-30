@@ -84,9 +84,9 @@ public final class MissionControlServer {
         addUrl(urls, httpUrl("127.0.0.1", port));
         state.url = urls.get(0);
         state.urls = List.copyOf(urls);
-        allowInboundNamed("TM Mission Control HTTPS", 443);
-        allowInboundNamed("TM Mission Control 8080", 8080);
-        allowInboundUdp("TM Mission Control mDNS", 5353);
+        allowInboundNamed("Terraforming Mars Telemetry HTTPS", 443);
+        allowInboundNamed("Terraforming Mars Telemetry 8080", 8080);
+        allowInboundUdp("Terraforming Mars Telemetry mDNS", 5353);
         allowJavaProgram();
         allowInbound(port);
         // Port rules alone don't prove phones get through: a block rule on the program overrides them.
@@ -109,12 +109,12 @@ public final class MissionControlServer {
         http.createContext("/", this::staticFile);
     }
 
-    /** Stop any Mission Control already bound to {@code port} so this process can take over. */
+    /** Stop any copy of this app already bound to {@code port} so this process can take over. */
     static void takeOver(int port) throws IOException {
         if (!portInUse(port)) {
             return;
         }
-        System.out.println("Another Mission Control is already running — stopping it.");
+        System.out.println("Another copy of Terraforming Mars Telemetry is already running — stopping it.");
         askToStop(port);
         if (waitUntilFree(port, 2500)) {
             return;
@@ -205,9 +205,15 @@ public final class MissionControlServer {
         }
     }
 
+    /** This app's names, old and new: an older copy may be the one holding the port. */
+    private static boolean isOurApp(String text) {
+        String t = text.toLowerCase(Locale.ROOT);
+        return t.contains("tmmissioncontrol") || t.contains("terraforming mars telemetry")
+                || t.contains("terraforming-mars-telemetry");
+    }
+
     private static boolean isMissionControl(ProcessHandle handle) {
-        String command = handle.info().command().orElse("").toLowerCase(Locale.ROOT);
-        if (command.contains("tmmissioncontrol")) {
+        if (isOurApp(handle.info().command().orElse(""))) {
             return true;
         }
         try {
@@ -216,7 +222,7 @@ public final class MissionControlServer {
                     .start();
             String out = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             proc.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
-            return out.toLowerCase(Locale.ROOT).contains("tmmissioncontrol");
+            return isOurApp(out);
         } catch (Exception ignored) {
             return false;
         }
@@ -306,8 +312,8 @@ public final class MissionControlServer {
             }
             try {
                 JmDNS dns = JmDNS.create(InetAddress.getByName(ip), LanNames.SHORT);
-                dns.registerService(ServiceInfo.create("_https._tcp.local.", "TM Mission Control", phonePort, "path=/"));
-                dns.registerService(ServiceInfo.create("_http._tcp.local.", "TM Mission Control", phonePort, "path=/"));
+                dns.registerService(ServiceInfo.create("_https._tcp.local.", "Terraforming Mars Telemetry", phonePort, "path=/"));
+                dns.registerService(ServiceInfo.create("_http._tcp.local.", "Terraforming Mars Telemetry", phonePort, "path=/"));
                 mdns.add(dns);
             } catch (Exception ex) {
                 System.err.println("mDNS not advertised on " + ip + ": " + ex.getMessage());
@@ -556,7 +562,7 @@ public final class MissionControlServer {
     }
 
     static boolean allowInbound(int port) {
-        return allowInboundNamed("TM Mission Control", port);
+        return allowInboundNamed("Terraforming Mars Telemetry", port);
     }
 
     static boolean allowInboundNamed(String name, int port) {

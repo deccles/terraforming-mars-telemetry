@@ -1,9 +1,9 @@
 ---
-description: This Cursor folder is the Terraforming Mars Mission Control app
+description: This Cursor folder is the Terraforming Mars Telemetry app (formerly TM Mission Control)
 alwaysApply: true
 ---
 
-# TM Mission Control project
+# Terraforming Mars Telemetry project
 
 This workspace (`git-terraforming-mars/terraforming-mars`) **is** the helper app for the Steam Terraforming Mars client.
 
@@ -11,4 +11,4 @@ This workspace (`git-terraforming-mars/terraforming-mars`) **is** the helper app
 - Package: `dev.tmmissioncontrol`
 - Do not treat the Steam game install or `AppData\LocalLow\LuckyHammers\Terraforming Mars` as this project's source root; those are data/log locations only
 
-Build and change Mission Control here. Fair-play rules always apply.
+Build and change Terraforming Mars Telemetry here. Fair-play rules always apply.

@@ -8,8 +8,8 @@ if %errorlevel% neq 0 (
 )
 
 set "JAVA_EXE="
-if exist "%LOCALAPPDATA%\TM Mission Control\java-exe.txt" (
-  set /p JAVA_EXE=<"%LOCALAPPDATA%\TM Mission Control\java-exe.txt"
+if exist "%LOCALAPPDATA%\Terraforming Mars Telemetry\java-exe.txt" (
+  set /p JAVA_EXE=<"%LOCALAPPDATA%\Terraforming Mars Telemetry\java-exe.txt"
 )
 if not defined JAVA_EXE if defined JAVA_HOME set "JAVA_EXE=%JAVA_HOME%\bin\java.exe"
 if not exist "%JAVA_EXE%" set "JAVA_EXE=C:\Program Files\Amazon Corretto\jdk21.0.9_10\bin\java.exe"
@@ -31,14 +31,18 @@ netsh advfirewall firewall delete rule name="TM Mission Control Java" >nul 2>nul
 netsh advfirewall firewall delete rule name="TM Mission Control Java UDP" >nul 2>nul
 netsh advfirewall firewall delete rule name="TM Mission Control mDNS" >nul 2>nul
 netsh advfirewall firewall delete rule name="TM Mission Control app" >nul 2>nul
-netsh advfirewall firewall add rule name="TM Mission Control" dir=in action=allow protocol=TCP localport=443,8080,8765 profile=any enable=yes
-netsh advfirewall firewall add rule name="TM Mission Control HTTPS" dir=in action=allow protocol=TCP localport=443 profile=any enable=yes
-netsh advfirewall firewall add rule name="TM Mission Control mDNS" dir=in action=allow protocol=UDP localport=5353 profile=any enable=yes
+netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry" >nul 2>nul
+netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry HTTPS" >nul 2>nul
+netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry mDNS" >nul 2>nul
+netsh advfirewall firewall delete rule name="Terraforming Mars Telemetry app" >nul 2>nul
+netsh advfirewall firewall add rule name="Terraforming Mars Telemetry" dir=in action=allow protocol=TCP localport=443,8080,8765 profile=any enable=yes
+netsh advfirewall firewall add rule name="Terraforming Mars Telemetry HTTPS" dir=in action=allow protocol=TCP localport=443 profile=any enable=yes
+netsh advfirewall firewall add rule name="Terraforming Mars Telemetry mDNS" dir=in action=allow protocol=UDP localport=5353 profile=any enable=yes
 if exist "%JAVA_EXE%" (
   rem Windows blocks the program when its "allow access?" prompt is cancelled; a block beats every allow.
   powershell -NoProfile -Command "$exe='%JAVA_EXE%'; Get-NetFirewallApplicationFilter | Where-Object { [Environment]::ExpandEnvironmentVariables($_.Program) -ieq $exe } | Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' } | Remove-NetFirewallRule"
-  netsh advfirewall firewall add rule name="TM Mission Control app" dir=in action=allow program="%JAVA_EXE%" protocol=TCP profile=any enable=yes
-  netsh advfirewall firewall add rule name="TM Mission Control app" dir=in action=allow program="%JAVA_EXE%" protocol=UDP profile=any enable=yes
+  netsh advfirewall firewall add rule name="Terraforming Mars Telemetry app" dir=in action=allow program="%JAVA_EXE%" protocol=TCP profile=any enable=yes
+  netsh advfirewall firewall add rule name="Terraforming Mars Telemetry app" dir=in action=allow program="%JAVA_EXE%" protocol=UDP profile=any enable=yes
 )
 if errorlevel 1 (
   echo Failed to add the firewall rule.
@@ -48,7 +52,7 @@ if errorlevel 1 (
 
 echo.
 echo Allowed Java inbound, TCP 443/8080/8765, and mDNS UDP 5353.
-echo Start TM Mission Control, then on the phone open the https:// name it prints.
+echo Start Terraforming Mars Telemetry, then on the phone open the https:// name it prints.
 echo Do not use a raw IP — Chrome will retry forever.
 echo.
 pause

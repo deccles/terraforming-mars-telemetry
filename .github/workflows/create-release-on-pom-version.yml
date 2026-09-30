@@ -118,14 +118,18 @@ jobs:
           $version = "${{ steps.ver.outputs.version }}"
           $tag = "${{ steps.decide.outputs.tag }}"
 
-          $msi = Get-ChildItem -Path dist\installer -Filter "TMMissionControl-$version.msi" | Select-Object -First 1
-          if (-not $msi) {
-            Write-Error "MSI not found. Searched for: TMMissionControl-$version.msi"
+          # jpackage names it "Terraforming Mars Telemetry-<version>.msi"; publish without spaces.
+          $built = Get-ChildItem -Path dist\installer -Filter "Terraforming Mars Telemetry-$version.msi" | Select-Object -First 1
+          if (-not $built) {
+            Write-Error "MSI not found. Searched for: Terraforming Mars Telemetry-$version.msi"
             Get-ChildItem -Path dist -Recurse -Filter "*.msi" | ForEach-Object { $_.FullName }
             exit 1
           }
+          $msiPath = Join-Path $built.DirectoryName "TerraformingMarsTelemetry-$version.msi"
+          Copy-Item $built.FullName $msiPath -Force
+          $msi = Get-Item $msiPath
 
-          $setup = Join-Path $msi.DirectoryName "TMMissionControl-Setup.msi"
+          $setup = Join-Path $msi.DirectoryName "TerraformingMarsTelemetry-Setup.msi"
           Copy-Item $msi.FullName $setup -Force
 
           function Publish-Asset($release, $path) {

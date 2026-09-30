@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Past games, one file each in %LOCALAPPDATA%\TM Mission Control\games\&lt;game id&gt;.json. A file holds the same
+ * Past games, one file each in %LOCALAPPDATA%\Terraforming Mars Telemetry\games\&lt;game id&gt;.json. A file holds the same
  * snapshot the page gets for a live game, so a past game renders with the same code (boards, charts, log).
  */
 final class GameArchive {
@@ -95,7 +95,7 @@ final class GameArchive {
 
     /**
      * Save games from the other logs in the game's log folder: Player-prev.log (the game before a relaunch,
-     * which is lost if Mission Control wasn't running) and any copies. Player.log itself is the live tailer's.
+     * which is lost if this app wasn't running) and any copies. Player.log itself is the live tailer's.
      * Each file is replayed once per size and timestamp; games already saved are left alone.
      */
     static void importLogs(Path logDir, Path liveLog, CardDatabase cards) {

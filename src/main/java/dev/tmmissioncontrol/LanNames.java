@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Locale;
 
 final class LanNames {
-    static final String SHORT = "tmmissioncontrol";
+    static final String SHORT = "terraforming-mars-telemetry";
 
     private LanNames() {
     }

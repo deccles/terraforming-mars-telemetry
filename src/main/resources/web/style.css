@@ -726,13 +726,6 @@ table.cubes td.prod.na { color: var(--muted); opacity: 0.6; }
   letter-spacing: 0.08em;
   font-size: 0.75rem;
 }
-.ms-left {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 .ms-claimed {
   display: flex;
   flex-wrap: wrap;

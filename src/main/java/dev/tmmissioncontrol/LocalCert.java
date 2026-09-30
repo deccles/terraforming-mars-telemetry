@@ -10,15 +10,46 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 final class LocalCert {
+    // Kept from the TM Mission Control days: the saved https.p12 was made with it (the rename moved it over).
     private static final char[] PASS = "tm-mission-control".toCharArray();
 
     private LocalCert() {
     }
 
+    /** %LOCALAPPDATA%\Terraforming Mars Telemetry: saved games, the HTTPS certificate, settings. */
     static Path dir() throws java.io.IOException {
-        Path dir = Path.of(System.getProperty("user.home"), "AppData", "Local", "TM Mission Control");
+        Path local = Path.of(System.getProperty("user.home"), "AppData", "Local");
+        Path dir = local.resolve("Terraforming Mars Telemetry");
+        if (!Files.exists(dir)) {
+            migrate(local.resolve("TM Mission Control"), dir);
+        }
         Files.createDirectories(dir);
         return dir;
+    }
+
+    /** The app was called TM Mission Control; bring its folder (past games included) along once. */
+    private static void migrate(Path old, Path dir) {
+        if (!Files.isDirectory(old)) {
+            return;
+        }
+        try {
+            Files.move(old, dir);
+            return;
+        } catch (java.io.IOException moveFailed) {
+            // A file still held open by an older copy blocks the rename; copy instead and leave the old folder.
+        }
+        try (var files = Files.walk(old)) {
+            for (Path src : files.toList()) {
+                Path dst = dir.resolve(old.relativize(src).toString());
+                if (Files.isDirectory(src)) {
+                    Files.createDirectories(dst);
+                } else if (!Files.exists(dst)) {
+                    Files.copy(src, dst);
+                }
+            }
+        } catch (java.io.IOException copyFailed) {
+            System.err.println("Could not bring over " + old + ": " + copyFailed.getMessage());
+        }
     }
 
     static SSLContext sslContext(List<String> hosts) throws Exception {
@@ -46,7 +77,7 @@ final class LocalCert {
         LinkedHashSet<String> out = new LinkedHashSet<>();
         out.add("localhost");
         out.add("127.0.0.1");
-        out.add("tmmissioncontrol.local");
+        out.add(LanNames.SHORT + ".local");
         for (String host : hosts) {
             if (host != null && !host.isBlank()) {
                 out.add(host.trim());
@@ -82,7 +113,7 @@ final class LocalCert {
                 "-keystore", store.toString(),
                 "-storepass", "tm-mission-control",
                 "-keypass", "tm-mission-control",
-                "-dname", "CN=tmmissioncontrol.local",
+                "-dname", "CN=" + LanNames.SHORT + ".local",
                 "-ext", ext.toString(),
                 "-noprompt")
                 .redirectErrorStream(true)

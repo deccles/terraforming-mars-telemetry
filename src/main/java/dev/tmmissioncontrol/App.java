@@ -18,7 +18,7 @@ public final class App {
                 case "--host" -> host = args[++i];
                 case "--once" -> once = true;
                 case "--help" -> {
-                    System.out.println("Usage: tm-mission-control [--log path] [--port 8765] [--host 192.168.x.x] [--once]");
+                    System.out.println("Usage: terraforming-mars-telemetry [--log path] [--port 8765] [--host 192.168.x.x] [--once]");
                     return;
                 }
                 default -> {
@@ -65,7 +65,7 @@ public final class App {
         MissionControlServer.stopHotspot();
         MissionControlServer server = new MissionControlServer(state, port, host);
         URI uri = server.start();
-        System.out.println("TM Mission Control");
+        System.out.println("Terraforming Mars Telemetry");
         System.out.println("  log  " + logFile);
         System.out.println("  open " + uri);
         System.out.println("  phone " + state.url);

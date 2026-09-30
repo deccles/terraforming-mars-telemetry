@@ -1,8 +1,8 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if not exist "target\tm-mission-control-1.0.13.jar" (
-  echo Building TM Mission Control...
+if not exist "target\terraforming-mars-telemetry-1.0.13.jar" (
+  echo Building Terraforming Mars Telemetry...
   mvn -q package -DskipTests
   if errorlevel 1 (
     echo Build failed. Install Java 21 and Maven, then run this again.
@@ -10,4 +10,4 @@ if not exist "target\tm-mission-control-1.0.13.jar" (
     exit /b 1
   )
 )
-java -jar "%~dp0target\tm-mission-control-1.0.13.jar" %*
+java -jar "%~dp0target\terraforming-mars-telemetry-1.0.13.jar" %*
