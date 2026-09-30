@@ -642,6 +642,9 @@ public final class MissionControlServer {
         if (path.endsWith(".svg")) {
             return "image/svg+xml";
         }
+        if (path.endsWith(".png")) {
+            return "image/png";
+        }
         return "text/html; charset=utf-8";
     }
 }

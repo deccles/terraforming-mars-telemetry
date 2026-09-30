@@ -66,6 +66,11 @@ public final class LogParser {
     private static final Pattern ADDING_HAND_CARD = Pattern.compile(
             "\\[PlayerAction] Adding action \\([\\d.]+\\) CardPlayerAction Card: (.+)$");
     private static final Pattern STAMP = Pattern.compile("^\\[([\\d.,]+)]");
+    /** Chat lines carry wall-clock time (local), e.g. "[6.506]... ChatEntry ... Time 9/27/2026 9:37:14 PM". */
+    private static final Pattern CHAT_CLOCK = Pattern.compile(
+            "^\\[([\\d,]+\\.\\d+)].*\\bTime (\\d{1,2}/\\d{1,2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M)");
+    private static final java.time.format.DateTimeFormatter CHAT_TIME =
+            java.time.format.DateTimeFormatter.ofPattern("M/d/yyyy h:mm:ss a", java.util.Locale.US);
 
     private final CardDatabase cards;
     private final GameState state;
@@ -84,6 +89,8 @@ public final class LogParser {
     private boolean collectDraws;
     private String pendingHandCard = "";
     private String lastLogKey = "";
+    /** When the game client launched (epoch millis), learned from a chat clock line; the log itself has no dates. */
+    long launchEpochMs = -1;
     private final java.util.Map<Integer, String> steamCorps = new java.util.HashMap<>();
 
     public LogParser(CardDatabase cards, GameState state) {
@@ -92,6 +99,7 @@ public final class LogParser {
     }
 
     public void replay(Path logFile) throws Exception {
+        launchEpochMs = -1; // a replay is a new client session; don't carry the last one's launch time
         int startLine = lastGameLine(logFile);
         try (var reader = Files.newBufferedReader(logFile, StandardCharsets.UTF_8)) {
             int lineNo = 0;
@@ -100,6 +108,8 @@ public final class LogParser {
                 lineNo++;
                 if (lineNo >= startLine) {
                     consume(line);
+                } else {
+                    noteClock(line); // the launch-time anchor usually comes before the game starts
                 }
             }
         }
@@ -125,8 +135,11 @@ public final class LogParser {
             return;
         }
         synchronized (state.lock()) {
+            noteClock(line);
             if (line.contains("Created new Game")) {
                 state.reset();
+                state.createdElapsed = elapsedOf(line);
+                applyStartTime();
                 currentPlayer = 1;
                 resourcePlayer = 0;
                 headerPlayer = 0;
@@ -843,6 +856,52 @@ public final class LogParser {
         }
         setActive(playerId, name, null, false);
         setCurrentPlayer(playerId);
+    }
+
+    /** Seconds since the client launched, from a line's "[1,095.771]" stamp; -1 when it has none. */
+    static double elapsedOf(String line) {
+        Matcher ts = STAMP.matcher(line);
+        if (!ts.find()) {
+            return -1;
+        }
+        try {
+            return Double.parseDouble(ts.group(1).replace(",", ""));
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
+    }
+
+    /** The client's launch time implied by a chat line's wall-clock time, or -1 if the line has none. */
+    static long launchFrom(String line) {
+        if (!line.contains(" Time ")) {
+            return -1;
+        }
+        Matcher m = CHAT_CLOCK.matcher(line);
+        if (!m.find()) {
+            return -1;
+        }
+        try {
+            double elapsed = Double.parseDouble(m.group(1).replace(",", ""));
+            long clock = java.time.LocalDateTime.parse(m.group(2), CHAT_TIME)
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+            return clock - Math.round(elapsed * 1000);
+        } catch (Exception ex) {
+            return -1;
+        }
+    }
+
+    void noteClock(String line) {
+        long launch = launchFrom(line);
+        if (launch > 0) {
+            launchEpochMs = launch;
+            applyStartTime();
+        }
+    }
+
+    private void applyStartTime() {
+        if (launchEpochMs > 0 && state.createdElapsed >= 0 && state.startedAtMs < 0) {
+            state.startedAtMs = launchEpochMs + Math.round(state.createdElapsed * 1000);
+        }
     }
 
     /**

@@ -31,6 +31,10 @@ public final class GameState {
     public ActivePlay activePlay;
     /** Save this game to Past games as it goes. Off for games replayed only to import them. */
     public boolean autoSave = true;
+    /** Seconds after the game client launched at which this game was created (the log's [elapsed] stamp). */
+    public double createdElapsed = -1;
+    /** When the game started, in epoch millis, once the log's launch time is known; -1 until then. */
+    public long startedAtMs = -1;
 
     public PlayerState player(int id) {
         return players.computeIfAbsent(id, PlayerState::new);
@@ -56,6 +60,8 @@ public final class GameState {
             scoreEvents.clear();
             playLog.clear();
             listedMilestones.clear();
+            createdElapsed = -1;
+            startedAtMs = -1;
             activePlay = null;
             player(1);
             player(2);
@@ -75,6 +81,7 @@ public final class GameState {
             out.put("live", live);
             out.put("activePlay", activePlay);
             out.put("log", new ArrayList<>(playLog));
+            out.put("startedAt", startedAtMs > 0 ? java.time.Instant.ofEpochMilli(startedAtMs).toString() : null);
             List<PlayerState> seated = seatedPlayers();
             PlayerState you = seated.stream().filter(p -> p.human).findFirst()
                     .orElse(players.getOrDefault(humanId, player(humanId)));

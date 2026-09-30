@@ -4,18 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Terraforming Mars Telemetry</title>
+  <link rel="icon" type="image/png" href="/logo.png">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="top">
     <div>
-      <h1>
-        <span class="brand-game">Terraforming Mars</span>
-        <span class="brand-app">Telemetry</span>
+      <h1 class="brand" aria-label="Terraforming Mars Telemetry">
+        <img class="brand-mark" src="/logo.png" alt="" width="48" height="48">
+        <span class="brand-text" aria-hidden="true">
+          <span class="brand-game">Terraforming Mars</span>
+          <span class="brand-app">Telemetry</span>
+          <svg class="brand-signal" viewBox="0 0 160 10" preserveAspectRatio="none">
+            <polyline points="0,6 40,6 48,6 52,1 56,9 60,3 64,6 100,6 106,6 109,2 112,8 115,6 160,6"/>
+          </svg>
+        </span>
       </h1>
-      <p class="meta" id="meta">Waiting for Player.log…</p>
+      <div class="meta-row">
+        <p class="meta" id="meta">Waiting for Player.log…</p>
+        <button type="button" class="games-btn" id="games-btn" aria-expanded="false" aria-controls="games-panel">Past games</button>
+      </div>
       <p class="update" id="update" hidden></p>
-      <button type="button" class="games-btn" id="games-btn" aria-expanded="false" aria-controls="games-panel">Past games</button>
     </div>
     <div class="top-right">
       <div class="live" id="live" role="status">idle</div>

@@ -3,6 +3,7 @@
 - Tray (src/main/resources/tray/tray-N.png): Mars filling the square with the three tiles as a lower-right badge.
 - Desktop (src/main/icons/desktop-N.png): the same on a trimmed navy tile; generate-windows-installer-icon.ps1
   puts these in the .ico for 16-48 px and uses the full icon.png for larger sizes.
+- Page logo (src/main/resources/web/logo.png): the tray art at 96 px, shown at 48 px in the page header.
 
 Everything is drawn at 8x from shapes and scaled down once per size, so each size is as sharp as it can be.
 Requires Pillow: python scripts/generate-small-icons.py
@@ -93,4 +94,6 @@ if __name__ == "__main__":
         tray(size).save(tray_dir / f"tray-{size}.png")
     for size in DESKTOP_SIZES:
         desktop(size).save(desktop_dir / f"desktop-{size}.png")
-    print(f"wrote {len(TRAY_SIZES)} tray and {len(DESKTOP_SIZES)} desktop icons")
+    # The page header's logo mark: the tray art, at 2x its 48 px display size for sharp high-DPI screens.
+    tray(96).save(ROOT / "src" / "main" / "resources" / "web" / "logo.png")
+    print(f"wrote {len(TRAY_SIZES)} tray and {len(DESKTOP_SIZES)} desktop icons, and the page logo")

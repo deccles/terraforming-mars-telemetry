@@ -697,7 +697,10 @@ function render(data) {
     chartsOpen = false;
     cardsOpen = false;
   }
-  $("meta").textContent = `Gen ${data.generation ?? "?"} · ${data.phase || ""} · ${data.board || ""} · ${data.gameId ? "Game " + data.gameId : "no game yet"}`;
+  const started = startedLabel(data.startedAt);
+  $("meta").textContent = data.gameId
+    ? [`Gen ${data.generation ?? "?"}`, data.phase, data.board, started && `Started ${started}`].filter(Boolean).join(" · ")
+    : "No game yet";
   const update = $("update");
   if (data.updateAvailable) {
     update.hidden = false;
@@ -1324,9 +1327,37 @@ function setHtml(el, html) {
   el._html = html;
 }
 
+/**
+ * Makes the wordmark's two lines ("TERRAFORMING MARS", "TELEMETRY") exactly the same width in whatever font the
+ * browser uses, by adjusting the narrower line's letter spacing. Letter spacing also trails the last letter, so
+ * a matching negative right margin keeps the right edges flush.
+ */
+function fitWordmark() {
+  const lines = [...document.querySelectorAll(".brand-game, .brand-app")];
+  if (lines.length !== 2) return;
+  lines.forEach((el) => { el.style.letterSpacing = ""; el.style.marginRight = ""; });
+  const spacing = (el) => parseFloat(getComputedStyle(el).letterSpacing) || 0;
+  const visible = (el) => el.getBoundingClientRect().width - spacing(el);
+  const target = Math.max(...lines.map(visible));
+  for (const el of lines) {
+    const ls = spacing(el) + (target - visible(el)) / (el.textContent.length - 1);
+    el.style.letterSpacing = `${ls}px`;
+    el.style.marginRight = `${-ls}px`;
+  }
+}
+
 /** A saved game being shown instead of the live one; live polling pauses while it's set. */
 let viewingGame = null;
 let liveGameId = "";
+
+/** "9:38 PM" for a game started today, "Sep 27, 9:38 PM" otherwise; "" when unknown. */
+function startedLabel(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return "";
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
+}
 
 function formatPlayedAt(iso) {
   const d = new Date(iso);
@@ -1361,7 +1392,8 @@ function renderGamesList(list) {
     }).join("");
     const live = g.gameId === liveGameId ? `<span class="games-tag">current</span>` : "";
     const status = (g.finished ? "" : `<span class="games-tag">unfinished</span>`)
-      + (g.imported ? `<span class="games-tag" title="Recovered from an older game log; the date is approximate">imported</span>` : "");
+      + (g.imported ? `<span class="games-tag" title="Recovered from an older game log${
+        g.approxDate ? "; the date is approximate" : ""}">imported</span>` : "");
     return `<li><button type="button" class="games-row" data-game-id="${escapeHtml(g.gameId)}">
         <span class="games-when">${escapeHtml(formatPlayedAt(g.playedAt))}${live}${status}</span>
         <span class="games-meta">${escapeHtml(g.board || "")} · Gen ${g.generation}</span>
@@ -1438,3 +1470,6 @@ bindCorpUi();
 bindTipUi();
 bindPhoneAccessUi();
 bindGamesUi();
+fitWordmark();
+document.fonts?.ready.then(fitWordmark);
+window.addEventListener("resize", fitWordmark);

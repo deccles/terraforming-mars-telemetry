@@ -66,11 +66,16 @@ final class GameArchive {
             LIVE_ONLY.forEach(snap::remove);
             snap.put("live", false);
             snap.put("finished", state.phase != null && state.phase.toLowerCase().contains("endgame"));
-            // Keep the first time we saw the game; later saves of the same game only refresh savedAt.
-            snap.put("playedAt", playedAt != null ? playedAt : firstPlayedAt(file));
+            // The real start time when the log gave one; otherwise the import's estimate, or the first save.
+            boolean known = state.startedAtMs > 0;
+            snap.put("playedAt", known ? Instant.ofEpochMilli(state.startedAtMs).toString()
+                    : playedAt != null ? playedAt : firstPlayedAt(file));
             snap.put("savedAt", Instant.now().toString());
             if (imported) {
                 snap.put("imported", true);
+            }
+            if (!known && playedAt != null) {
+                snap.put("approxDate", true);
             }
             Path tmp = file.resolveSibling(id + ".json.tmp");
             Files.writeString(tmp, GSON.toJson(snap), StandardCharsets.UTF_8);
@@ -103,7 +108,8 @@ final class GameArchive {
             return;
         }
         try (Stream<Path> files = Files.list(logDir)) {
-            Path marker = dir().resolve("imported-logs.txt");
+            // v2: logs are re-read once so games imported with estimated dates get their real start times.
+            Path marker = dir().resolve("imported-logs-v2.txt");
             List<String> done = Files.exists(marker) ? Files.readAllLines(marker, StandardCharsets.UTF_8) : new ArrayList<>();
             for (Path file : files.filter(f -> f.getFileName().toString().toLowerCase().endsWith(".log")).toList()) {
                 if (file.equals(liveLog)) {
@@ -128,15 +134,21 @@ final class GameArchive {
         List<GameState> games = new ArrayList<>();
         GameState game = null;
         LogParser parser = null;
+        long launch = -1; // chat clock lines before a game give its start time
         // InputStreamReader replaces bad bytes instead of failing like Files.newBufferedReader would.
         try (var reader = new java.io.BufferedReader(
                 new java.io.InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                long seen = LogParser.launchFrom(line);
+                if (seen > 0) {
+                    launch = seen;
+                }
                 if (line.contains("Created new Game")) {
                     game = new GameState();
                     game.autoSave = false;
                     parser = new LogParser(cards, game);
+                    parser.launchEpochMs = launch;
                     games.add(game);
                 }
                 if (parser != null) {
@@ -144,13 +156,18 @@ final class GameArchive {
                 }
             }
         }
-        // The log has no dates: order imported games by position, ending at the file's timestamp.
+        // Without a chat clock line, estimate: order games by position, ending at the file's timestamp.
         Instant end = Files.getLastModifiedTime(file).toInstant();
         int saved = 0;
         for (int i = 0; i < games.size(); i++) {
             GameState g = games.get(i);
             String id = fileId(g.gameId);
-            if (id.isEmpty() || g.playLog.isEmpty() || Files.exists(dir().resolve(id + ".json"))) {
+            if (id.isEmpty() || g.playLog.isEmpty()) {
+                continue;
+            }
+            Path existing = dir().resolve(id + ".json");
+            // Leave saved games alone, except imports with an estimated date that we can now date for real.
+            if (Files.exists(existing) && !(g.startedAtMs > 0 && estimatedImport(existing))) {
                 continue;
             }
             synchronized (g.lock()) {
@@ -159,6 +176,18 @@ final class GameArchive {
             saved++;
         }
         return saved;
+    }
+
+    /** An imported game whose date was estimated (saved before start times came from the log). */
+    private static boolean estimatedImport(Path file) {
+        try {
+            JsonObject old = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
+            boolean imported = old.has("imported") && old.get("imported").getAsBoolean();
+            boolean dated = old.has("startedAt") && !old.get("startedAt").isJsonNull();
+            return imported && !dated;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     /** One line per saved game for the picker, newest first. */
@@ -186,6 +215,10 @@ final class GameArchive {
         s.put("generation", game.has("generation") ? game.get("generation").getAsInt() : 0);
         s.put("finished", game.has("finished") && game.get("finished").getAsBoolean());
         s.put("imported", game.has("imported") && game.get("imported").getAsBoolean());
+        // Imports without a real start time (the log had no chat clock line) carry an estimated date.
+        boolean started = game.has("startedAt") && !game.get("startedAt").isJsonNull();
+        boolean imported = game.has("imported") && game.get("imported").getAsBoolean();
+        s.put("approxDate", (game.has("approxDate") && game.get("approxDate").getAsBoolean()) || (imported && !started));
         JsonObject byId = game.has("score") && game.getAsJsonObject("score").has("byId")
                 ? game.getAsJsonObject("score").getAsJsonObject("byId") : new JsonObject();
         List<Map<String, Object>> players = new ArrayList<>();
