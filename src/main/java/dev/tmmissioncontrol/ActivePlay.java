@@ -32,6 +32,7 @@ public final class ActivePlay {
         public Map<String, Object> production = new LinkedHashMap<>();
         public Map<String, Object> resources = new LinkedHashMap<>();
         public Map<String, Object> req = new LinkedHashMap<>();
+        public List<String> place = new ArrayList<>();
     }
 
     void fromCard(Card card) {

@@ -189,6 +189,7 @@ public final class LogParser {
                 if (collectDraws && !pendingHandCard.isBlank()) {
                     if (state.player(bankPlayer).human) {
                         addDrawn(pendingHandCard);
+                        logDrawn(bankPlayer, pendingHandCard);
                     }
                     pendingHandCard = "";
                 }
@@ -859,6 +860,30 @@ public final class LogParser {
     }
 
     /**
+     * Put a drawn card on the player's latest move this generation: the card, project, conversion, or action
+     * whose effect or tile placement drew it. Action phase only, so research-phase buys aren't pinned to the
+     * previous generation's last move.
+     */
+    private void logDrawn(int playerId, String rawName) {
+        if (!"Actions".equals(state.phase)) {
+            return;
+        }
+        String name = cards.displayName(rawName);
+        for (int i = state.playLog.size() - 1; i >= 0; i--) {
+            LogEntry entry = state.playLog.get(i);
+            if (entry.generation != state.generation) {
+                return;
+            }
+            if (entry.playerId == playerId) {
+                if (entry.drawn.stream().noneMatch(d -> name.equals(d.name))) {
+                    entry.drawn.add(drawnCard(rawName));
+                }
+                return;
+            }
+        }
+    }
+
+    /**
      * A blue card belongs to one player, so match by name across the table. The log's number in
      * "Playing action (129) Blue Card Action : ..." is an action id, not the card number.
      */
@@ -987,8 +1012,13 @@ public final class LogParser {
                 return;
             }
         }
+        state.activePlay.drawn.add(drawnCard(rawName));
+    }
+
+    /** A drawn card with what the page needs to describe it (banner "Drew" list, game log popovers). */
+    private ActivePlay.DrawnCard drawnCard(String rawName) {
         ActivePlay.DrawnCard drawn = new ActivePlay.DrawnCard();
-        drawn.name = name;
+        drawn.name = cards.displayName(rawName);
         Card card = cards.find(rawName);
         if (card != null) {
             drawn.color = card.color;
@@ -1005,8 +1035,11 @@ public final class LogParser {
             if (card.req != null) {
                 drawn.req = new java.util.LinkedHashMap<>(card.req);
             }
+            if (card.place != null) {
+                drawn.place = List.copyOf(card.place);
+            }
         }
-        state.activePlay.drawn.add(drawn);
+        return drawn;
     }
 
     private void setActive(int playerId, String name, String placing, boolean preview) {
