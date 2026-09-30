@@ -96,18 +96,46 @@ function tokenChip(c) {
   return `<span class="token token-${kind}${n ? "" : " zero"}" title="${n} ${label} on this card">${n}</span>`;
 }
 
-function renderCards(title, cards, cls) {
+/** A player's card section; its header collapses just that section for just that player. */
+function renderCards(title, cards, cls, playerId, generation) {
   if (!cards || !cards.length) return "";
-  return `<h3 class="section-title">${title}</h3>
-    <div class="cards">${cards.map((c) => `
-      <div class="card ${cls}">
+  const key = `${playerId}:${cls}`;
+  const open = !collapsedCardSections.has(key);
+  // Blue cards: actions first (what can I still do this generation?), effects after; play order within each.
+  const shown = cls === "blue" ? [...cards].sort((a, b) => hasAction(b) - hasAction(a)) : cards;
+  return `<h3 class="section-title cards-title">
+      <button type="button" class="cards-toggle" data-cards="${key}" aria-expanded="${open}">
+        <span>${title}</span><span class="cards-count">${cards.length}</span>${chevron()}
+      </button>
+    </h3>
+    <div class="cards"${open ? "" : " hidden"}>${shown.map((c) => {
+      const used = hasAction(c) && generation != null && c.actionUsedGen === generation;
+      return `
+      <div class="card ${cls}${used ? " used" : ""}"${used ? ` title="Action already used this generation"` : ""}>
         <div class="card-head">
           <h3>${c.name}</h3>
+          <span class="card-head-tags">${(c.tags || []).map(tagIcon).join("")}</span>
+          ${used ? `<span class="card-used">Used</span>` : ""}
           ${tokenChip(c)}
         </div>
-        <p class="card-tags">${(c.tags || []).map(tagIcon).join("")}</p>
+        ${cardGainsLine(c)}
         ${c.extra ? `<p>${extra(c.extra)}</p>` : ""}
-      </div>`).join("")}</div>`;
+      </div>`;
+    }).join("")}</div>`;
+}
+
+/** Blue cards with an activated ability; the rest are ongoing effects. */
+function hasAction(card) {
+  return /\bAction\s*:/i.test(card.extra || "");
+}
+
+/** Production, resources, tiles, and printed VP; for many cards this is everything they do. */
+function cardGainsLine(card) {
+  const { gains, places } = cardEffects(card);
+  const bits = [...gains];
+  if (card.printedVp) bits.push(resSym("vp", card.printedVp, false));
+  if (!bits.length && !places.length) return "";
+  return `<p class="card-gains">${bits.join("")}${places.length ? `<span class="card-places">${places.join(" · ")}</span>` : ""}</p>`;
 }
 
 function helpMark() {
@@ -199,7 +227,7 @@ function bindTipUi() {
   });
 }
 
-function renderPlayer(p) {
+function renderPlayer(p, generation) {
   const color = teamColor(p);
   const you = !!p.human;
   const subtitle = boardSubtitle(p);
@@ -231,10 +259,10 @@ function renderPlayer(p) {
       ${renderTrLine(p)}
       ${renderTags(p.tags)}
       <p class="board-awards"></p>
-      <div class="board-blues">${renderCards("Blue cards", p.blueCards, "blue")}</div>
+      <div class="board-blues">${renderCards("Blue cards", p.blueCards, "blue", p.id, generation)}</div>
       <div class="board-rest">
-        ${renderCards("Automated", p.greenCards, "green")}
-        ${renderCards("Events", p.events, "red")}
+        ${renderCards("Automated", p.greenCards, "green", p.id, generation)}
+        ${renderCards("Events", p.events, "red", p.id, generation)}
       </div>
     </div>
   </article>`;
@@ -457,6 +485,12 @@ function bindBannerUi() {
     bannerOpen = !bannerOpen;
     applyBannerOpen();
   });
+  $("game-log").addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-log-filter]");
+    if (!btn) return;
+    logFilter = btn.dataset.logFilter === "" ? null : Number(btn.dataset.logFilter);
+    if (lastLogData) renderGameLog(lastLogData);
+  });
 }
 
 function formatReq(req) {
@@ -542,17 +576,77 @@ function renderBanner(data) {
     setHtml($("banner-benefit"), benefitHtml(play));
     $("banner-effect").textContent = play.effect || "";
     setHtml($("banner-tips"), (play.remember || []).map((t) => `<li>${escapeHtml(t)}</li>`).join(""));
+    $("game-log").hidden = true;
   } else {
-    $("banner-toggle").disabled = true;
-    $("banner-chevron").hidden = true;
+    // Between plays the banner opens onto the game log instead.
+    const log = data.log || [];
+    $("banner-toggle").disabled = log.length === 0;
+    $("banner-chevron").hidden = log.length === 0;
     $("banner-kicker").textContent = "No card in flight";
-    setHtml($("banner-line"), "");
+    setHtml($("banner-line"), log.length
+      ? `<span class="banner-log-summary">Game log · ${log.length} move${log.length === 1 ? "" : "s"}</span>`
+      : "");
     setHtml($("banner-benefit"), "");
     $("banner-effect").textContent = "";
     setHtml($("banner-tips"), "");
-    bannerOpen = false;
+    $("game-log").hidden = log.length === 0;
+    lastLogData = data;
+    renderGameLog(data);
   }
   applyBannerOpen();
+}
+
+let logFilter = null;
+let lastLogData = null;
+
+function prettyName(name) {
+  return String(name).replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
+function logWhat(e) {
+  switch (e.kind) {
+    case "card":
+      return `played <span class="log-card ${escapeHtml(e.color)}"></span>${cardRef(e.name)}`;
+    case "action":
+      return `used ${cardRef(e.name)}`;
+    case "corp-action":
+      return `used ${escapeHtml(e.name)}`;
+    case "project":
+      return `standard project: ${escapeHtml(prettyName(e.name))}`;
+    case "convert":
+      return /heat/i.test(e.name) ? "converted heat into temperature" : "converted plants into a greenery";
+    case "milestone":
+      return `claimed <strong>${escapeHtml(e.name)}</strong>`;
+    case "award":
+      return `funded <strong>${escapeHtml(e.name)}</strong>`;
+    default:
+      return escapeHtml(e.name);
+  }
+}
+
+/** Every move so far, newest first, grouped by generation; filterable to one player. */
+function renderGameLog(data) {
+  const players = tablePlayers(data);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  indexChartCards(players);
+  beginCardRefs("logcard");
+  const log = (data.log || []).filter((e) => logFilter == null || e.playerId === logFilter);
+  const filters = [`<button type="button" class="log-filter${logFilter == null ? " on" : ""}" data-log-filter="">All</button>`]
+    .concat(players.map((p) =>
+      `<button type="button" class="log-filter color-${teamColor(p)}${logFilter === p.id ? " on" : ""}" data-log-filter="${p.id}">${escapeHtml(displayName(p, "P" + p.id))}</button>`));
+  const groups = [];
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i];
+    if (!groups.length || groups[groups.length - 1].gen !== e.generation) groups.push({ gen: e.generation, rows: [] });
+    const p = byId.get(e.playerId);
+    groups[groups.length - 1].rows.push(`<li class="log-entry color-${p ? teamColor(p) : "blue"}">
+        <span class="log-who">${escapeHtml(p ? displayName(p, "P" + p.id) : "P" + e.playerId)}</span> ${logWhat(e)}
+      </li>`);
+  }
+  setHtml($("game-log"), `<div class="log-filters">${filters.join("")}</div>`
+    + (groups.length
+      ? groups.map((g) => `<h4 class="log-gen">Generation ${g.gen}</h4><ol class="log-list">${g.rows.join("")}</ol>`).join("")
+      : `<p class="log-empty">No moves yet.</p>`));
 }
 
 function render(data) {
@@ -560,6 +654,8 @@ function render(data) {
     lastGameId = data.gameId || "";
     corpRulesOpen = false;
     collapsedBoardIds = new Set();
+    collapsedCardSections = new Set();
+    logFilter = null;
     selectedGen = null;
     chartsOpen = false;
     cardsOpen = false;
@@ -587,7 +683,7 @@ function render(data) {
   const players = tablePlayers(data);
   const boards = $("boards");
   boards.className = "boards players-" + Math.max(1, Math.min(5, players.length));
-  setHtml(boards, players.map(renderPlayer).join(""));
+  setHtml(boards, players.map((p) => renderPlayer(p, data.generation)).join(""));
   renderScore(data, players);
   alignBoardSections();
   applyOpenTip();
@@ -891,6 +987,25 @@ function indexChartCards(players) {
   }
 }
 
+/**
+ * The printed effects the card catalog keeps as data rather than text (Power Plant's "+1 energy production"
+ * is only a production value): requirement, gain chips as HTML, and tile placements not already in the gains.
+ */
+function cardEffects(card) {
+  // Global parameters and TR have no icon; spell them out rather than show a bare colored box.
+  const gain = (k, v, prod) => resIcon(resKey(k))
+    ? resSym(k, v, prod)
+    : `<span class="tip-card-gain">${escapeHtml(`${Number(v) > 0 ? "+" : ""}${v} ${resLabel(resKey(k))}`)}</span>`;
+  const gains = [
+    ...Object.entries(card.production || {}).filter(([, v]) => v != null && v !== 0).map(([k, v]) => gain(k, v, true)),
+    ...Object.entries(card.resources || {}).filter(([, v]) => v != null && v !== 0).map(([k, v]) => gain(k, v, false)),
+  ];
+  const resourceKeys = Object.keys(card.resources || {});
+  const places = (card.place || []).filter((k) => !resourceKeys.includes(k))
+    .map((k) => `Place ${escapeHtml(k)} tile`);
+  return { req: formatReq(card.req), gains, places };
+}
+
 /** A chart label, with a card popover when it names a played card ("X", "X action", "X (Player)"). */
 function cardRef(label) {
   const text = escapeHtml(label);
@@ -903,18 +1018,7 @@ function cardRef(label) {
     .join("\n");
   const tags = (card.tags || []).map(tagIcon).join("");
   const cost = card.cost != null ? costSym(card.cost) : "";
-  const req = formatReq(card.req);
-  // Global parameters and TR have no icon; spell them out rather than show a bare colored box.
-  const gain = (k, v, prod) => resIcon(resKey(k))
-    ? resSym(k, v, prod)
-    : `<span class="tip-card-gain">${escapeHtml(`${Number(v) > 0 ? "+" : ""}${v} ${resLabel(resKey(k))}`)}</span>`;
-  const gains = [
-    ...Object.entries(card.production || {}).filter(([, v]) => v != null && v !== 0).map(([k, v]) => gain(k, v, true)),
-    ...Object.entries(card.resources || {}).filter(([, v]) => v != null && v !== 0).map(([k, v]) => gain(k, v, false)),
-  ];
-  const resourceKeys = Object.keys(card.resources || {});
-  const places = (card.place || []).filter((k) => !resourceKeys.includes(k))
-    .map((k) => `Place ${escapeHtml(k)} tile`);
+  const { req, gains, places } = cardEffects(card);
   const vp = card.printedVp ? `<span class="tip-card-vp">${card.printedVp} VP</span>` : "";
   const tokens = card.tokens ? `<span class="tip-card-vp">${card.tokens} ${tokenWord(card.tokenType, card.tokens)} now</span>` : "";
   const pop = `<span class="tip-card-head"><strong>${escapeHtml(card.name)}</strong>${cost}${tags}</span>`
@@ -1015,11 +1119,14 @@ let selectedGen = null;
 let lastScoreData = null;
 let lastScorePlayers = [];
 let scoreUiBound = false;
-let bannerOpen = true;
+// Closed until a card is in flight (which opens it) or the game log is opened by hand.
+let bannerOpen = false;
 let bannerKey = "";
 let bannerUiBound = false;
 let corpRulesOpen = false;
 let collapsedBoardIds = new Set();
+/** "playerId:section" for each collapsed card section (blue, green, red). */
+let collapsedCardSections = new Set();
 let corpUiBound = false;
 let lastGameId = "";
 
@@ -1078,6 +1185,18 @@ function bindCorpUi() {
   corpUiBound = true;
   window.addEventListener("resize", alignBoardSections);
   $("boards").addEventListener("click", (ev) => {
+    const section = ev.target.closest(".cards-toggle");
+    if (section) {
+      const key = section.dataset.cards;
+      const open = collapsedCardSections.has(key);
+      if (open) collapsedCardSections.delete(key);
+      else collapsedCardSections.add(key);
+      section.setAttribute("aria-expanded", String(open));
+      const cards = section.closest(".cards-title")?.nextElementSibling;
+      if (cards) cards.hidden = !open;
+      alignBoardSections();
+      return;
+    }
     const info = ev.target.closest(".corp-info");
     if (info) {
       corpRulesOpen = !corpRulesOpen;
