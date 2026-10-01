@@ -37,7 +37,7 @@ public final class ScoreCalculator {
         }
         out.put("byId", byKey);
         if (you != null) {
-            out.put("you", byId.getOrDefault(you.id, scorePlayer(you, cityCount(players))));
+            out.put("you", byId.getOrDefault(you.id, scorePlayer(you, cityCount(players), colonyCount(players))));
         }
         if (state.tiles.isEmpty()) {
             out.put("note", "No tiles parsed yet — city adjacency VP will appear once hexes are in the log.");
@@ -53,8 +53,9 @@ public final class ScoreCalculator {
     static Map<Integer, Breakdown> compute(GameState state, List<PlayerState> players) {
         Map<Integer, Breakdown> byId = new LinkedHashMap<>();
         int citiesInPlay = cityCount(players);
+        int coloniesInPlay = colonyCount(players);
         for (PlayerState player : players) {
-            byId.put(player.id, scorePlayer(player, citiesInPlay));
+            byId.put(player.id, scorePlayer(player, citiesInPlay, coloniesInPlay));
         }
         applyBoard(state, byId);
         applyAwards(state, players, byId);
@@ -69,14 +70,18 @@ public final class ScoreCalculator {
         return citiesInPlay;
     }
 
-    private static Breakdown scorePlayer(PlayerState player, int citiesInPlay) {
+    static int colonyCount(List<PlayerState> players) {
+        return players.stream().mapToInt(p -> p.colonies.size()).sum();
+    }
+
+    private static Breakdown scorePlayer(PlayerState player, int citiesInPlay, int coloniesInPlay) {
         Breakdown b = new Breakdown();
         b.tr = player.tr;
         b.mc = player.megaCredits;
         b.milestones = player.milestones.size() * 5;
         b.greeneries = player.greeneries;
         for (PlayedCard card : player.allCards()) {
-            int vp = cardVp(card, player, citiesInPlay);
+            int vp = cardVp(card, player, citiesInPlay, coloniesInPlay);
             if (vp != 0) {
                 b.cards += vp;
                 b.cardDetails.add((vp > 0 ? "+" : "") + vp + " " + card.name);
@@ -286,6 +291,10 @@ public final class ScoreCalculator {
     }
 
     static int cardVp(PlayedCard card, PlayerState owner, int citiesInPlay) {
+        return cardVp(card, owner, citiesInPlay, 0);
+    }
+
+    static int cardVp(PlayedCard card, PlayerState owner, int citiesInPlay, int coloniesInPlay) {
         String extra = card.extra == null ? "" : card.extra;
         Matcher m = VP_LINE.matcher(extra);
         String expr = null;
@@ -297,7 +306,7 @@ public final class ScoreCalculator {
             if (cut >= 0) {
                 expr = expr.substring(0, cut).trim();
             }
-            Integer parsed = parseExpr(expr, card, owner, citiesInPlay);
+            Integer parsed = parseExpr(expr, card, owner, citiesInPlay, coloniesInPlay);
             if (parsed != null) {
                 return parsed;
             }
@@ -305,7 +314,8 @@ public final class ScoreCalculator {
         return card.printedVp;
     }
 
-    private static Integer parseExpr(String expr, PlayedCard card, PlayerState owner, int citiesInPlay) {
+    private static Integer parseExpr(String expr, PlayedCard card, PlayerState owner, int citiesInPlay,
+            int coloniesInPlay) {
         String e = expr.toLowerCase(Locale.ROOT)
                 .replace("resource", "")
                 .replace("*", "")
@@ -317,6 +327,11 @@ public final class ScoreCalculator {
         }
         if (e.contains("ocean") || (e.contains("city") && e.contains("/") && !e.contains("3 city") && !e.contains("/3"))) {
             return 0;
+        }
+        Matcher colonies = Pattern.compile("(\\d+)\\s*/\\s*(\\d+)\\s*colon").matcher(e);
+        if (colonies.find()) {
+            int den = Integer.parseInt(colonies.group(2));
+            return den == 0 ? 0 : Integer.parseInt(colonies.group(1)) * (coloniesInPlay / den);
         }
         int tokens = card.tokens;
         int jovian = owner.tags.getOrDefault("jovian", 0);

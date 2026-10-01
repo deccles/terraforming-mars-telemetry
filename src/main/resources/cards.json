@@ -7416,7 +7416,7 @@
     "vp": null,
     "resources": {},
     "production": {},
-    "extra": "(Requires a colony. Place a colony. MAY BE PLACED ON A COLONY TILE WHERE YOU ALREADY HAVE A COLONY. Gain 1 Trade Fleet. 1VP per 2 colonies in play.)",
+    "extra": "(Requires a colony. Place a colony. MAY BE PLACED ON A COLONY TILE WHERE YOU ALREADY HAVE A COLONY. Gain 1 Trade Fleet. 1VP per 2 colonies in play.)\nVP: 1/2 Colony in play",
     "place": [],
     "req": {
       "colony": 1

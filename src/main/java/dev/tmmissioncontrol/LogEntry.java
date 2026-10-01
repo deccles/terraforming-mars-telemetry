@@ -7,11 +7,13 @@ import java.util.List;
 public final class LogEntry {
     public final int generation;
     public final int playerId;
-    /** card, project, action, corp-action, convert, milestone, award */
+    /** card, project, action, corp-action, convert, milestone, award, colony, trade */
     public final String kind;
     public final String name;
     /** Card color (blue, green, red, ...) for card plays; empty otherwise. */
     public final String color;
+    /** What a colony build or trade paid out ("+3 energy"); empty otherwise. */
+    public String detail = "";
     /** Cards the local player drew because of this move (a card, a placement on a card bonus, an action). */
     public final List<ActivePlay.DrawnCard> drawn = new ArrayList<>();
 

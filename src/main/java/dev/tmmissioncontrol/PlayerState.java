@@ -39,6 +39,11 @@ public final class PlayerState {
     public int greeneries;
     public int oceans;
     public int specialTiles;
+    /** Colony tiles this player has a colony on (a name twice for two colonies there). */
+    public final List<String> colonies = new ArrayList<>();
+    public int tradeFleets = 1;
+    /** Trade fleets sent out this generation; they come home at the end of it. */
+    public int fleetsUsed;
 
     public final Map<String, Integer> tags = new LinkedHashMap<>();
     public final List<PlayedCard> blueCards = new ArrayList<>();

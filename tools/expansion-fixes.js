@@ -61,7 +61,8 @@ const REQ = {
   X63: { o2: 4 },
 };
 
-// VP per resource where the scrape wrote "1 per resource" for a card that scores per 2 or 3.
+// VP per resource where the scrape wrote "1 per resource" for a card that scores per 2 or 3,
+// or left out a VP that depends on the table (Space Port Colony).
 const VP = {
   "224": "1/3 Microbe Resource",
   "225": "1/2 Floater Resource",
@@ -71,6 +72,7 @@ const VP = {
   C33: "1/Camp Resource",
   C42: "1/2 Animal Resource",
   X14: "1/Asteroid Resource",
+  C40: "1/2 Colony in play",
 };
 
 function apply(cards) {

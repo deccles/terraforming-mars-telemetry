@@ -93,6 +93,22 @@ function renderPlacements(p) {
     </div>`;
 }
 
+/** Colony tiles this player has colonies on, and their trade fleets (Colonies games only). */
+function renderColonies(p) {
+  if (!coloniesOn) return "";
+  const counts = new Map();
+  for (const tile of p.colonies || []) counts.set(tile, (counts.get(tile) || 0) + 1);
+  const chips = [...counts].map(([tile, n]) =>
+    `<span class="colony-chip">${escapeHtml(tile)}${n > 1 ? ` ×${n}` : ""}</span>`);
+  const fleets = p.tradeFleets ?? 1;
+  const used = Math.min(p.fleetsUsed ?? 0, fleets);
+  const fleetText = `${fleets} trade fleet${fleets === 1 ? "" : "s"}${used ? ` · ${used} out this generation` : ""}`;
+  return `<div class="board-colonies">
+      <h3 class="section-title board-subtitle">Colonies</h3>
+      <div class="colony-list">${chips.length ? chips.join("") : `<span class="colony-none">No colonies yet</span>`}<span class="colony-fleets">${fleetText}</span></div>
+    </div>`;
+}
+
 function renderTags(tags) {
   const cells = tags
     ? Object.entries(tags).map(([k, v]) =>
@@ -286,6 +302,7 @@ function renderPlayer(p, generation) {
       </div>
       ${renderCubes(p)}
       ${renderPlacements(p)}
+      ${renderColonies(p)}
       ${renderTags(p.tags)}
       <p class="board-awards"></p>
       <div class="board-blues">${renderCards("Blue cards", p.blueCards, "blue", generation)}</div>
@@ -640,6 +657,10 @@ function logWhat(e) {
       return `claimed <strong>${escapeHtml(e.name)}</strong>`;
     case "award":
       return `funded <strong>${escapeHtml(e.name)}</strong>`;
+    case "colony":
+      return `built a colony on <strong>${escapeHtml(e.name)}</strong>${e.detail ? ` (${escapeHtml(e.detail)})` : ""}`;
+    case "trade":
+      return `traded with <strong>${escapeHtml(e.name)}</strong>${e.detail ? ` (${escapeHtml(e.detail)})` : ""}`;
     default:
       return escapeHtml(e.name);
   }
@@ -689,6 +710,7 @@ function render(data) {
     chartsOpen = false;
     cardsOpen = false;
   }
+  coloniesOn = !!data.colonies;
   const started = startedLabel(data.startedAt);
   $("meta").textContent = data.gameId
     ? [`Gen ${data.generation ?? "?"}`, data.phase, data.board, started && `Started ${started}`].filter(Boolean).join(" · ")
@@ -1158,6 +1180,7 @@ let lastScorePlayers = [];
 let scoreUiBound = false;
 // Closed until a card is in flight (which opens it) or the game log is opened by hand.
 let bannerOpen = false;
+let coloniesOn = false;
 let bannerUiBound = false;
 let corpRulesOpen = false;
 let collapsedBoardIds = new Set();

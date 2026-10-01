@@ -82,6 +82,7 @@ public final class GameState {
             out.put("firewallOpen", firewallOpen);
             out.put("gameId", gameId);
             out.put("board", board);
+            out.put("colonies", colonies);
             out.put("generation", generation);
             out.put("phase", phase);
             out.put("live", live);
@@ -175,11 +176,13 @@ public final class GameState {
         return event;
     }
 
-    public void addLog(int playerId, String kind, String name, String color) {
+    public LogEntry addLog(int playerId, String kind, String name, String color) {
         if (playerId <= 0 || name == null || name.isBlank()) {
-            return;
+            return null;
         }
-        playLog.add(new LogEntry(generation, playerId, kind, name.trim(), color));
+        LogEntry entry = new LogEntry(generation, playerId, kind, name.trim(), color);
+        playLog.add(entry);
+        return entry;
     }
 
     public void recordGenerationEnd() {
