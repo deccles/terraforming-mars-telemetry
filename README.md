@@ -23,7 +23,7 @@ Default log path:
 
 `%USERPROFILE%\AppData\LocalLow\LuckyHammers\Terraforming Mars\Player.log`
 
-Override with `--log` / `--port` if needed.
+Override with `--log` / `--port` if needed. Add `--no-browser` to start without opening a browser tab.
 
 ## What it tracks
 

@@ -10,6 +10,7 @@ public final class App {
         Path logFile = defaultLog();
         int port = 8765;
         boolean once = false;
+        boolean openBrowser = true;
         String host = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -17,8 +18,9 @@ public final class App {
                 case "--port" -> port = Integer.parseInt(args[++i]);
                 case "--host" -> host = args[++i];
                 case "--once" -> once = true;
+                case "--no-browser" -> openBrowser = false;
                 case "--help" -> {
-                    System.out.println("Usage: terraforming-mars-telemetry [--log path] [--port 8765] [--host 192.168.x.x] [--once]");
+                    System.out.println("Usage: terraforming-mars-telemetry [--log path] [--port 8765] [--host 192.168.x.x] [--once] [--no-browser]");
                     return;
                 }
                 default -> {
@@ -84,7 +86,8 @@ public final class App {
         GithubMsiUpdater.start();
         MissionControlTray.install(uri);
 
-        if (Desktop.isDesktopSupported()) {
+        // --no-browser for restarts while developing, when the page is already open in a tab.
+        if (openBrowser && Desktop.isDesktopSupported()) {
             try {
                 Desktop.getDesktop().browse(uri);
             } catch (Exception ignored) {
