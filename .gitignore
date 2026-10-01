@@ -5,6 +5,7 @@ bin/
 *.iml
 .classpath
 .project
+.pydevproject
 .settings/
 .vscode/
 cards.src.js
