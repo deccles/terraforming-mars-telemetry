@@ -93,22 +93,6 @@ function renderPlacements(p) {
     </div>`;
 }
 
-/** Colony tiles this player has colonies on, and their trade fleets (Colonies games only). */
-function renderColonies(p) {
-  if (!coloniesOn) return "";
-  const counts = new Map();
-  for (const tile of p.colonies || []) counts.set(tile, (counts.get(tile) || 0) + 1);
-  const chips = [...counts].map(([tile, n]) =>
-    `<span class="colony-chip">${escapeHtml(tile)}${n > 1 ? ` ×${n}` : ""}</span>`);
-  const fleets = p.tradeFleets ?? 1;
-  const used = Math.min(p.fleetsUsed ?? 0, fleets);
-  const fleetText = `${fleets} trade fleet${fleets === 1 ? "" : "s"}${used ? ` · ${used} out this generation` : ""}`;
-  return `<div class="board-colonies">
-      <h3 class="section-title board-subtitle">Colonies</h3>
-      <div class="colony-list">${chips.length ? chips.join("") : `<span class="colony-none">No colonies yet</span>`}<span class="colony-fleets">${fleetText}</span></div>
-    </div>`;
-}
-
 function renderTags(tags) {
   const cells = tags
     ? Object.entries(tags).sort(([a], [b]) => (a === "none") - (b === "none")).map(([k, v]) =>
@@ -132,12 +116,34 @@ function corpRuleText(raw) {
   return extra(text);
 }
 
-function tokenChip(c) {
+/** Next to the corporation name: every floater the player has, on any card (what Hoverlord counts). */
+function playerFloaterChip(p) {
+  const holders = [...(p.blueCards || []), ...(p.greenCards || []), ...(p.events || []), ...(p.corpCard ? [p.corpCard] : [])]
+    .filter((c) => c.tokenType === "floater");
+  const chips = [];
+  if (holders.length) {
+    const n = holders.reduce((sum, c) => sum + (c.tokens || 0), 0);
+    const where = holders.length === 1 ? holders[0].name : `${holders.length} cards`;
+    chips.push(tokenChip({ tokenType: "floater", tokens: n }, `${n} floater${n === 1 ? "" : "s"} in all (${where})`));
+  }
+  // A corporation holding something else (Arklight's animals, Recyclon's microbes) keeps its own chip.
+  if (p.corpCard && p.corpCard.tokenType && p.corpCard.tokenType !== "floater") chips.push(tokenChip(p.corpCard));
+  return chips.join("");
+}
+
+function tokenChip(c, title) {
   if (!c.tokenType && !(c.tokens > 0)) return "";
   const kind = c.tokenType || "token";
   const n = c.tokens ?? 0;
   const label = n === 1 ? kind : kind + "s";
-  return `<span class="token token-${kind}${n ? "" : " zero"}" title="${n} ${label} on this card">${n}</span>`;
+  const tip = escapeHtml(title || `${n} ${label} on this card`);
+  if (kind === "floater") {
+    // Like the game's floater: a pale cloud on a striped gold square, with the count in the cloud.
+    return `<span class="token token-floater${n ? "" : " zero"}" title="${tip}">`
+      + `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 18.6h11.2a4 4 0 0 0 .5-7.96 5.4 5.4 0 0 0-10.4-1.5 4.75 4.75 0 0 0-1.3 9.46z"/></svg>`
+      + `<span class="n">${n}</span></span>`;
+  }
+  return `<span class="token token-${kind}${n ? "" : " zero"}" title="${tip}">${n}</span>`;
 }
 
 /** A player's card section; its header opens or closes that section on every player's board at once. */
@@ -291,6 +297,7 @@ function renderPlayer(p, generation) {
   return `<article class="board color-${color}${you ? " you" : ""}${collapsed ? " collapsed" : ""}">
     <div class="board-head">
       ${info}
+      ${playerFloaterChip(p)}
       <button type="button" class="board-toggle" data-corp="${p.id}" aria-expanded="${collapsed ? "false" : "true"}" aria-controls="board-body-${p.id}" aria-label="${collapsed ? "Expand" : "Collapse"} ${title}">
         ${chevron()}
       </button>
@@ -302,8 +309,8 @@ function renderPlayer(p, generation) {
       </div>
       ${renderCubes(p)}
       ${renderPlacements(p)}
-      ${renderColonies(p)}
       ${renderTags(p.tags)}
+      ${renderColonySection(p, lastStateData)}
       <p class="board-awards"></p>
       <div class="board-blues">${renderCards("Blue cards", p.blueCards, "blue", generation)}</div>
       <div class="board-rest">
@@ -663,9 +670,135 @@ function logWhat(e) {
       return `built a colony on <strong>${escapeHtml(e.name)}</strong>${e.detail ? ` (${escapeHtml(e.detail)})` : ""}`;
     case "trade":
       return `traded with <strong>${escapeHtml(e.name)}</strong>${e.detail ? ` (${escapeHtml(e.detail)})` : ""}`;
+    case "bonus":
+      return `got the <strong>${escapeHtml(e.name)}</strong> colony bonus${e.detail ? ` (${escapeHtml(e.detail)})` : ""}`;
     default:
       return escapeHtml(e.name);
   }
+}
+
+/** "3 floaters", "1 floater": counts for colony payouts, whichever form the tile data uses. */
+function colonyAmount(n, word) {
+  const w = String(word || "");
+  const countable = /^(floater|microbe|animal|plant|card)s?\b/.test(w);
+  if (!countable) return `${n} ${w}`;
+  const one = w.replace(/^(\w+?)s\b/, "$1");
+  return `${n} ${n === 1 ? one : one.replace(/^(\w+)/, "$1s")}`;
+}
+
+/** "floaters", "floater", "M€ production" → one key per kind of payout. */
+function colonyKind(resource) {
+  const r = String(resource || "").toLowerCase();
+  if (r.includes("production")) return "mcprod";
+  if (r.startsWith("m€")) return "mc";
+  if (r.startsWith("card")) return "card";
+  return r.replace(/s$/, "");
+}
+
+/**
+ * Rough M€ worth of one unit, for picking the best trade. Floaters, microbes and animals are worth
+ * nothing unless you have a card that holds them (the game drops them otherwise).
+ */
+function colonyUnitValue(kind, you) {
+  const holds = (type) => [...(you.blueCards || []), ...(you.greenCards || []), ...(you.corpCard ? [you.corpCard] : [])]
+    .some((c) => c.tokenType === type);
+  switch (kind) {
+    case "mc": return 1;
+    case "steel": return 2;
+    case "titanium": return 3;
+    case "plant": return 1.5;
+    case "energy": return 1;
+    case "heat": return 1;
+    case "card": return 3;
+    case "mcprod": return 4;
+    case "floater": case "microbe": case "animal": return holds(kind) ? 1.5 : 0;
+    default: return 1;
+  }
+}
+
+/**
+ * A player's Colonies section, between their tags and blue cards: their colonies and trade fleets,
+ * then (collapsible) every tile's track and what a trade would give this player right now.
+ */
+function renderColonySection(p, data) {
+  const tiles = coloniesOn && data ? (data.colonyTiles || []) : [];
+  if (!coloniesOn) return "";
+  const counts = new Map();
+  for (const tile of p.colonies || []) counts.set(tile, (counts.get(tile) || 0) + 1);
+  const chips = [...counts].map(([tile, n]) =>
+    `<span class="colony-chip">${escapeHtml(tile)}${n > 1 ? ` ×${n}` : ""}</span>`);
+  const fleets = p.tradeFleets ?? 1;
+  const used = Math.min(p.fleetsUsed ?? 0, fleets);
+  const fleetText = `${fleets} trade fleet${fleets === 1 ? "" : "s"}${used ? ` · ${used} out this generation` : ""}`;
+  const mineLine = `<div class="colony-list">${chips.length ? chips.join("") : `<span class="colony-none">No colonies yet</span>`}`
+    + `<span class="colony-fleets">${fleetText}</span></div>`;
+
+  const byId = new Map(tablePlayers(data).map((pl) => [pl.id, pl]));
+  const rows = tiles.map((t) => {
+    const now = (t.track || [])[t.position];
+    const mine = (t.owners || []).filter((id) => id === p.id).length;
+    const tradeable = t.active && !t.fleetHere && now != null;
+    const value = tradeable
+      ? now * colonyUnitValue(colonyKind(t.resource), p) + mine * (t.bonus || 0) * colonyUnitValue(colonyKind(t.bonusResource), p)
+      : -1;
+    return { t, now, mine, tradeable, value };
+  });
+  const best = rows.filter((r) => r.tradeable && r.value > 0).sort((a, b) => b.value - a.value)[0];
+  const who = p.human ? "you" : displayName(p, "them");
+  const bestText = best ? `Best for ${who}: ${best.t.name}, +${colonyAmount(best.now, best.t.resource)}` : "";
+  const body = rows.map((r) => {
+    const t = r.t;
+    const steps = (t.track || []).map((v, i) => {
+      const owner = byId.get((t.owners || [])[i]);
+      const slot = i < 3 && owner ? `<span class="slot color-${teamColor(owner)}" title="${escapeHtml(displayName(owner, ""))}'s colony"></span>` : "";
+      return `<span class="colony-step${i === t.position ? " here" : ""}">${v}${slot}</span>`;
+    }).join("");
+    let status;
+    if (!t.active) {
+      status = `<span class="extra">Inactive until someone plays a card that holds ${escapeHtml(t.activatedBy || "")}s</span>`;
+    } else if (t.fleetHere) {
+      status = `<span class="extra">A trade fleet is here until the Solar phase</span>`;
+    } else {
+      const own = r.mine ? ` <span class="extra">+ ${p.human ? "your" : "their"} colony bonus ${escapeHtml(colonyAmount(r.mine * t.bonus, t.bonusResource))}</span>` : "";
+      status = `Trade now: <span class="gain">+${escapeHtml(colonyAmount(r.now, t.resource))}</span>${own}`;
+    }
+    return `<div class="colony-row${r === best ? " best" : ""}${t.active ? "" : " off"}">
+        <span class="colony-name">${escapeHtml(t.name)}<small>bonus ${escapeHtml(colonyAmount(t.bonus, t.bonusResource))}</small></span>
+        <span class="colony-track">${steps}</span>
+        <span class="colony-trade">${status}${r === best
+          ? `<span class="best-tag" title="Highest rough M€ value; floaters, microbes and animals count only with a card to hold them">Best for ${escapeHtml(who)}</span>`
+          : ""}</span>
+      </div>`;
+  }).join("");
+
+  return `<div class="board-colonies">
+      <h3 class="section-title board-subtitle">
+        <button type="button" class="colony-toggle" aria-expanded="${colonyOpen}">
+          <span>Colonies</span>${colonyOpen ? "" : `<span class="colony-summary">${escapeHtml(bestText)}</span>`}${chevron()}
+        </button>
+      </h3>
+      ${mineLine}
+      ${tiles.length ? `<div class="colony-rows"${colonyOpen ? "" : " hidden"}>${body}</div>` : ""}
+    </div>`;
+}
+
+function loadColonyOpen() {
+  try {
+    return localStorage.getItem("colonyPanelOpen") !== "false";
+  } catch {
+    return true;
+  }
+}
+
+/** One switch for every board's colony tracks, like the card sections. */
+function toggleColonies() {
+  colonyOpen = !colonyOpen;
+  try {
+    localStorage.setItem("colonyPanelOpen", String(colonyOpen));
+  } catch {
+    // Private windows can refuse storage; the tracks still fold for this visit.
+  }
+  if (lastStateData) render(lastStateData);
 }
 
 /** Cards this move drew (yours only; opponents' draws would reveal their hand). */
@@ -713,6 +846,7 @@ function render(data) {
     cardsOpen = false;
   }
   coloniesOn = !!data.colonies;
+  lastStateData = data;
   const started = startedLabel(data.startedAt);
   $("meta").textContent = data.gameId
     ? [`Gen ${data.generation ?? "?"}`, data.phase, data.board, started && `Started ${started}`].filter(Boolean).join(" · ")
@@ -1183,6 +1317,8 @@ let scoreUiBound = false;
 // Closed until a card is in flight (which opens it) or the game log is opened by hand.
 let bannerOpen = false;
 let coloniesOn = false;
+let colonyOpen = loadColonyOpen();
+let lastStateData = null;
 let bannerUiBound = false;
 let corpRulesOpen = false;
 let collapsedBoardIds = new Set();
@@ -1214,7 +1350,7 @@ function applyBoardUi() {
   alignBoardSections();
 }
 
-const BOARD_ALIGN = [".board-head", ".board-intro", ".board-cubes", ".board-tiles", ".board-tags", ".board-awards"];
+const BOARD_ALIGN = [".board-head", ".board-intro", ".board-cubes", ".board-tiles", ".board-tags", ".board-colonies", ".board-awards"];
 
 function alignBoardSections() {
   document.querySelectorAll(BOARD_ALIGN.join(",")).forEach((el) => {
@@ -1246,6 +1382,10 @@ function bindCorpUi() {
   corpUiBound = true;
   window.addEventListener("resize", alignBoardSections);
   $("boards").addEventListener("click", (ev) => {
+    if (ev.target.closest(".colony-toggle")) {
+      toggleColonies();
+      return;
+    }
     const section = ev.target.closest(".cards-toggle");
     if (section) {
       // When boards stack (narrow screens, 4-5 players), sections above the clicked one change height too;

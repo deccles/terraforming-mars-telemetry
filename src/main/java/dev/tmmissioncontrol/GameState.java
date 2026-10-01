@@ -33,6 +33,8 @@ public final class GameState {
     public final List<ScoreEvent> scoreEvents = new ArrayList<>();
     public final List<LogEntry> playLog = new ArrayList<>();
     public final Set<String> listedMilestones = new LinkedHashSet<>();
+    /** Colony tiles in play, in the order setup lists them. */
+    public final Map<String, ColonyTile> colonyTiles = new LinkedHashMap<>();
     public ActivePlay activePlay;
     /** Save this game to Past games as it goes. Off for games replayed only to import them. */
     public boolean autoSave = true;
@@ -40,6 +42,10 @@ public final class GameState {
     public double createdElapsed = -1;
     /** When the game started, in epoch millis, once the log's launch time is known; -1 until then. */
     public long startedAtMs = -1;
+
+    public ColonyTile colonyTile(String name) {
+        return colonyTiles.computeIfAbsent(name, ColonyTile::new);
+    }
 
     public PlayerState player(int id) {
         return players.computeIfAbsent(id, PlayerState::new);
@@ -66,6 +72,7 @@ public final class GameState {
             scoreEvents.clear();
             playLog.clear();
             listedMilestones.clear();
+            colonyTiles.clear();
             createdElapsed = -1;
             startedAtMs = -1;
             activePlay = null;
@@ -83,6 +90,7 @@ public final class GameState {
             out.put("gameId", gameId);
             out.put("board", board);
             out.put("colonies", colonies);
+            out.put("colonyTiles", colonyTiles.values().stream().map(ColonyTile::toMap).toList());
             out.put("generation", generation);
             out.put("phase", phase);
             out.put("live", live);

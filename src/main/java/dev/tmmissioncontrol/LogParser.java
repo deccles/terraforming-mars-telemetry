@@ -69,6 +69,8 @@ public final class LogParser {
     /** Start of a game-action dump; colony builds and trades are only described inside these. */
     private static final Pattern EVENT_START = Pattern.compile(
             "\\[PlayerAction] Player \\d+ Play for player (\\d+) event : GameActionEvent");
+    /** Setup lists each colony tile in play once per player. */
+    private static final Pattern COLONY_TILE = Pattern.compile("\\[PlayerAction] Added (\\w+) actions to \\d+");
     private static final Pattern GAIN_FLEET = Pattern.compile(
             "\\[PlayerAction] Playing \\([\\d.]+\\) GainTradeFleetPlayerAction");
     /** Chat lines carry wall-clock time (local), e.g. "[6.506]... ChatEntry ... Time 9/27/2026 9:37:14 PM". */
@@ -181,6 +183,13 @@ public final class LogParser {
             m = EVENT_START.matcher(line);
             if (m.find()) {
                 pendingEvent = new ActionEvent(Integer.parseInt(m.group(1)));
+            }
+            m = COLONY_TILE.matcher(line);
+            if (m.find() && state.colonies) {
+                state.colonyTile(m.group(1));
+            }
+            if (line.contains("Entered the Colonies Solar Phase")) {
+                state.colonyTiles.values().forEach(ColonyTile::solarPhase);
             }
             if (GAIN_FLEET.matcher(line).find()) {
                 state.player(currentPlayer).tradeFleets++;
@@ -320,6 +329,9 @@ public final class LogParser {
                     amount = -Math.abs(amount);
                 }
                 addCardTokens(Integer.parseInt(m.group(4)), m.group(3), amount);
+                // A card holding floaters, microbes or animals wakes Titan, Enceladus or Miranda.
+                String held = m.group(3).toLowerCase(java.util.Locale.ROOT).replaceAll("s$", "");
+                state.colonyTiles.values().forEach(t -> t.wake(held));
             }
 
             m = CONFIRM_PLAY.matcher(line);
@@ -1301,6 +1313,7 @@ public final class LogParser {
             case 8 -> "plants";
             case 16 -> "energy";
             case 32 -> "heat";
+            case 64 -> "microbes";
             case 16384 -> "floaters";
             case 262144 -> "camps";
             default -> null;
@@ -1310,6 +1323,18 @@ public final class LogParser {
 
     private static String singular(String name) {
         return name.endsWith("s") ? name.substring(0, name.length() - 1) : name;
+    }
+
+    /** "+3 energy" for a resource flag and amount, or "" when the flag isn't one we know. */
+    private static String gainText(int type, boolean production, int quantity) {
+        String what = resourceName(type, production);
+        if (what == null || quantity == 0) {
+            return "";
+        }
+        if (Math.abs(quantity) == 1) {
+            what = singular(what);
+        }
+        return (quantity > 0 ? "+" : "") + quantity + " " + what;
     }
 
     /** A colony build (ActionType 43) or trade (45): record it, log it and show it in the banner. */
@@ -1322,31 +1347,43 @@ public final class LogParser {
         }
         PlayerState player = state.player(e.playerId);
         String tile = colonyName(e.chosen);
-        String what = resourceName(e.resourceType, e.production);
-        if (what != null && Math.abs(e.quantity) == 1) {
-            what = singular(what);
-        }
-        String gain = what != null && e.quantity != 0 ? (e.quantity > 0 ? "+" : "") + e.quantity + " " + what : "";
+        ActionEvent.Sub paid = e.payout();
+        String gain = paid == null ? "" : gainText(paid.resourceType, paid.production, paid.quantity);
         boolean build = e.actionType == 43;
+        ColonyTile colony = state.colonyTile(tile);
         if (build) {
             player.colonies.add(tile);
+            colony.built(player.id);
         } else {
             player.fleetsUsed++;
+            colony.traded(e.quantity, paid == null ? 0 : paid.quantity);
         }
         LogEntry entry = state.addLog(player.id, build ? "colony" : "trade", tile, "");
         if (entry != null) {
             entry.detail = gain;
         }
-        List<String> tips = build
-                ? List.of(
-                        "Placement bonus now" + (gain.isEmpty() ? "." : ": " + gain + "."),
-                        "This colony earns its owner the colony bonus whenever anyone trades with " + tile + ".",
-                        "Up to 3 colonies per tile, normally only one per player.")
-                : List.of(
-                        "Takes what the " + tile + " track shows now" + (gain.isEmpty() ? "." : ": " + gain + "."),
-                        "Every colony owner on " + tile + " gets their colony bonus too.",
-                        "The track drops back to just past the colonies, then climbs 1 step each Solar phase.",
-                        "That trade fleet is out until the end of the generation.");
+        List<String> bonusTips = new ArrayList<>();
+        for (ActionEvent.Sub bonus : e.colonyBonuses()) {
+            String got = gainText(bonus.resourceType, bonus.production, bonus.quantity);
+            PlayerState owner = state.player(bonus.playerId);
+            LogEntry line = state.addLog(owner.id, "bonus", tile, "");
+            if (line != null) {
+                line.detail = got;
+            }
+            bonusTips.add((owner.human ? "You get " : owner.label() + " gets ")
+                    + (got.isEmpty() ? "the" : got + ",") + " colony bonus.");
+        }
+        List<String> tips = new ArrayList<>();
+        if (build) {
+            tips.add("Placement bonus now" + (gain.isEmpty() ? "." : ": " + gain + "."));
+            tips.add("This colony earns its owner the colony bonus whenever anyone trades with " + tile + ".");
+            tips.add("Up to 3 colonies per tile, normally only one per player.");
+        } else {
+            tips.add("Takes what the " + tile + " track shows now" + (gain.isEmpty() ? "." : ": " + gain + "."));
+            tips.addAll(bonusTips);
+            tips.add("The track drops back to just past the colonies, then climbs 1 step each Solar phase.");
+            tips.add("That trade fleet is out until the end of the generation.");
+        }
         ActivePlay play = new ActivePlay();
         play.playerId = player.id;
         play.playerLabel = player.label();
@@ -1360,16 +1397,33 @@ public final class LogParser {
         state.live = true;
     }
 
-    /** The top-level fields of one GameActionEvent dump, plus the first resource its sub-actions hand out. */
+    /**
+     * One GameActionEvent dump: its top-level fields and every sub-action, by indent depth. A trade's
+     * sub-actions are the payout (ActionType 11) and one colony bonus per owner (ActionType 48, with the
+     * resource one level deeper); its own Quantity is the track step it traded at.
+     */
     static final class ActionEvent {
+        static final class Sub {
+            final int depth;
+            final int playerId;
+            int actionType = -1;
+            int resourceType = -1;
+            int quantity;
+            boolean production;
+
+            Sub(int depth, int playerId) {
+                this.depth = depth;
+                this.playerId = playerId;
+            }
+        }
+
         final int playerId;
         int actionType = -1;
         String actionId = "";
         String time = "";
         int chosen = -1;
-        int resourceType = -1;
-        int quantity;
-        boolean production;
+        int quantity = -1;
+        final List<Sub> subs = new ArrayList<>();
 
         ActionEvent(int playerId) {
             this.playerId = playerId;
@@ -1384,24 +1438,89 @@ public final class LogParser {
             if (colon < 0) {
                 return;
             }
+            int depth = 0;
+            while (depth < line.length() && line.charAt(depth) == '\t') {
+                depth++;
+            }
             String key = line.substring(0, colon).trim();
             String value = line.substring(colon + 3).trim();
-            if (line.startsWith("\t") && !line.startsWith("\t\t")) {
+            if (depth == 1) {
                 switch (key) {
                     case "ActionType" -> actionType = intOr(value, -1);
                     case "GameActionID" -> actionId = value;
                     case "Time" -> time = value;
+                    case "Quantity" -> quantity = intOr(value, -1);
                     default -> { }
                 }
-            } else if (line.startsWith("\t\t\t") && !line.startsWith("\t\t\t\t") && quantity == 0) {
-                // The first sub-action that moves a resource is what the build or trade paid out.
-                switch (key) {
-                    case "ResourceType" -> resourceType = resourceType < 0 ? intOr(value, -1) : resourceType;
-                    case "IsProdResource" -> production = resourceType >= 0 ? "True".equals(value) : production;
-                    case "Quantity" -> quantity = resourceType >= 0 ? intOr(value, 0) : 0;
-                    default -> { }
+                return;
+            }
+            if ("PlayerLocalID".equals(key)) {
+                subs.add(new Sub(depth, intOr(value, 0)));
+                return;
+            }
+            Sub sub = lastAt(depth);
+            if (sub == null) {
+                return;
+            }
+            switch (key) {
+                case "ActionType" -> sub.actionType = intOr(value, -1);
+                case "ResourceType" -> sub.resourceType = intOr(value, -1);
+                case "IsProdResource" -> sub.production = "True".equals(value);
+                case "Quantity" -> sub.quantity = intOr(value, 0);
+                default -> { }
+            }
+        }
+
+        private Sub lastAt(int depth) {
+            for (int i = subs.size() - 1; i >= 0; i--) {
+                if (subs.get(i).depth == depth) {
+                    return subs.get(i);
                 }
             }
+            return null;
+        }
+
+        /** The first direct sub-action that moves a resource: what the build or trade paid out. */
+        Sub payout() {
+            int top = topDepth();
+            for (Sub sub : subs) {
+                if (sub.depth == top && sub.resourceType >= 0 && sub.actionType != 48) {
+                    return sub;
+                }
+            }
+            return null;
+        }
+
+        /** Colony bonuses: each direct ActionType 48 sub-action and the first resource nested under it. */
+        List<Sub> colonyBonuses() {
+            int top = topDepth();
+            List<Sub> out = new ArrayList<>();
+            for (int i = 0; i < subs.size(); i++) {
+                Sub sub = subs.get(i);
+                if (sub.depth != top || sub.actionType != 48) {
+                    continue;
+                }
+                for (int j = i + 1; j < subs.size() && subs.get(j).depth > top; j++) {
+                    Sub inner = subs.get(j);
+                    if (inner.resourceType >= 0) {
+                        Sub bonus = new Sub(top, sub.playerId);
+                        bonus.resourceType = inner.resourceType;
+                        bonus.production = inner.production;
+                        bonus.quantity = inner.quantity;
+                        out.add(bonus);
+                        break;
+                    }
+                }
+            }
+            return out;
+        }
+
+        private int topDepth() {
+            int top = Integer.MAX_VALUE;
+            for (Sub sub : subs) {
+                top = Math.min(top, sub.depth);
+            }
+            return top;
         }
 
         private static int intOr(String s, int fallback) {
