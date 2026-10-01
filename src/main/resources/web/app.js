@@ -111,8 +111,8 @@ function renderColonies(p) {
 
 function renderTags(tags) {
   const cells = tags
-    ? Object.entries(tags).map(([k, v]) =>
-      `<span class="tag-count${v ? "" : " zero"}" title="${escapeHtml(k)} ${v}">${tagIcon(k)}<span class="n">${v}</span></span>`)
+    ? Object.entries(tags).sort(([a], [b]) => (a === "none") - (b === "none")).map(([k, v]) =>
+      `<span class="tag-count${v ? "" : " zero"}" title="${escapeHtml(TAG_LABEL[k] || k)} ${v}">${tagIcon(k)}<span class="n">${v}</span></span>`)
     : [];
   return `<div class="board-tags"><h3 class="section-title board-subtitle">Tags</h3><div class="tags">${cells.join("")}</div></div>`;
 }
@@ -435,14 +435,16 @@ const TAG_GLYPH = {
   wild: '<path fill="currentColor" d="M12 3 14 9h6l-5 3.6L17 19l-5-3.4L7 19l2-6.4L4 9h6z"/>',
   mars: '<circle cx="10" cy="13" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path fill="none" stroke="currentColor" stroke-width="1.8" d="M14 9 20 3M15 3h5v5"/>',
   moon: '<path fill="currentColor" d="M14 4a8 8 0 1 0 6 12 7 7 0 0 1-6-12z"/>',
+  none: '<path fill="none" stroke="#080604" stroke-width="2.2" stroke-linecap="round" d="M5.6 5.6 18.4 18.4M18.4 5.6 5.6 18.4"/>',
 };
+const TAG_LABEL = { none: "No tag" };
 
 function tagIcon(tag) {
   const key = String(tag || "").toLowerCase();
   const glyph = TAG_GLYPH[key];
   const cls = TAG_GLYPH[key] ? key : "unknown";
   const inner = glyph || `<text x="12" y="16" text-anchor="middle" font-size="11" fill="currentColor">${escapeHtml(key.slice(0, 1).toUpperCase())}</text>`;
-  return `<span class="sym tag-sym tag-${cls}" title="${escapeHtml(key)}"><svg viewBox="0 0 24 24">${inner}</svg></span>`;
+  return `<span class="sym tag-sym tag-${cls}" title="${escapeHtml(TAG_LABEL[key] || key)}"><svg viewBox="0 0 24 24">${inner}</svg></span>`;
 }
 
 function costSym(n) {

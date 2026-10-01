@@ -357,6 +357,18 @@ h1.brand { margin: 0; display: flex; align-items: center; gap: 12px; font-weight
 .tag-wild { background: #7a5aa8; }
 .tag-mars { background: #c45c32; }
 .tag-moon { background: #c8ccd0; color: #243044; }
+.tag-none {
+  background: #080604;
+  clip-path: circle(50%);
+}
+.tag-none::before {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  background: radial-gradient(circle at 38% 34%, #ffffff 0 30%, #d4d4d4 75%, #a8a8a8 100%);
+  border-radius: 50%;
+}
+.tag-none svg { position: relative; z-index: 1; width: 1.3rem; height: 1.3rem; }
 .tag-unknown { background: #5a4038; }
 .res-sym {
   display: inline-flex;

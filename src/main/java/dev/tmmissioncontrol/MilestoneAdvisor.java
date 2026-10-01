@@ -127,7 +127,7 @@ public final class MilestoneAdvisor {
     private static int distinctTags(PlayerState p) {
         int n = 0;
         for (Map.Entry<String, Integer> e : p.tags.entrySet()) {
-            if (e.getValue() != null && e.getValue() > 0) {
+            if (e.getValue() != null && e.getValue() > 0 && !PlayerState.NO_TAG.equals(e.getKey())) {
                 n++;
             }
         }

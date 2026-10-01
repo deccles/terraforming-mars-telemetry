@@ -58,7 +58,7 @@ public final class PlayerState {
         this.color = PlayerColors.colorFor(id);
         for (String tag : List.of(
                 "building", "space", "science", "power", "earth", "jovian",
-                "plant", "microbe", "animal", "city", "event")) {
+                "plant", "microbe", "animal", "city", "event", NO_TAG)) {
             tags.put(tag, 0);
         }
     }
@@ -102,6 +102,9 @@ public final class PlayerState {
         return accountName();
     }
 
+    /** Played project cards with no tags at all, shown with the tags like the game does. */
+    public static final String NO_TAG = "none";
+
     public void addTag(String tag) {
         if (tag == null || tag.isBlank()) {
             return;
@@ -120,6 +123,9 @@ public final class PlayerState {
         }
         for (String tag : card.tags) {
             addTag(tag);
+        }
+        if (card.tags.isEmpty() && card.color != null) { // a card missing from the catalog has no tags either
+            addTag(NO_TAG);
         }
     }
 
