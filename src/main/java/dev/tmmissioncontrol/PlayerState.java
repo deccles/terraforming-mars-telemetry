@@ -13,6 +13,10 @@ public final class PlayerState {
     public String color;
     public String corporation = "Unknown";
     public String corpRules = "";
+    /** The game's corporation id from setup; resources on the corporation are logged against its negative. */
+    public int corpSteamId = -1;
+    /** The corporation as a card, so floaters/animals on it count like any other card's. */
+    public PlayedCard corpCard;
     public int startingMc = -1;
     public int tr = 20;
 
@@ -115,7 +119,10 @@ public final class PlayerState {
     }
 
     public PlayedCard cardByNumber(int number) {
-        if (number <= 0) {
+        if (number < 0) {
+            return corpCard != null && corpSteamId == -number ? corpCard : null;
+        }
+        if (number == 0) {
             return null;
         }
         for (PlayedCard card : blueCards) {
@@ -141,6 +148,9 @@ public final class PlayerState {
         all.addAll(blueCards);
         all.addAll(greenCards);
         all.addAll(events);
+        if (corpCard != null) {
+            all.add(corpCard);
+        }
         return all;
     }
 }

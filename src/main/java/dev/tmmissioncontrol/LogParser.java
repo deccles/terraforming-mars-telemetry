@@ -50,7 +50,7 @@ public final class LogParser {
     private static final Pattern CONVERSION = Pattern.compile(
             "Playing(?: action)? \\(([\\d.]+)\\) (?:Last)?(Plant|Heat)ConversionPlayerAction");
     private static final Pattern CARD_TOKEN = Pattern.compile(
-            "\\[PlayerResources] (Adding|Removing) (-?\\d+) (\\w+) (?:to|from) (\\d+)");
+            "\\[PlayerResources] (Adding|Removing) (-?\\d+) (\\w+) (?:to|from) (-?\\d+)");
     private static final Pattern CORP_CITY = Pattern.compile(
             "\\[PlayerAction] (?:Adding|Playing) action \\((\\d+)\\) PlaceCityTilePlayerAction");
     private static final Pattern ASKING_PLAYER = Pattern.compile(
@@ -267,6 +267,8 @@ public final class LogParser {
                 pendingCorpMc = -1;
                 pendingCorps = List.of();
                 pendingSteamCorpId = Integer.parseInt(m.group(1));
+                // Resources on a corporation are logged against minus this id ("Adding 3 Floater to -23").
+                state.player(pendingCorpPlayer).corpSteamId = pendingSteamCorpId;
                 String known = SteamCorporations.nameFor(pendingSteamCorpId);
                 if (known == null) {
                     known = steamCorps.get(pendingSteamCorpId);
@@ -697,6 +699,13 @@ public final class LogParser {
         }
         player.corporation = corp.name;
         player.corpRules = corp.extra == null ? "" : corp.extra;
+        PlayedCard holder = new PlayedCard();
+        holder.name = corp.name;
+        holder.color = corp.color;
+        holder.extra = player.corpRules;
+        holder.project = false;
+        holder.tokenType = cards.tokenType(corp);
+        player.corpCard = holder;
         for (String tag : corp.tags) {
             player.addTag(tag);
         }
@@ -1155,7 +1164,7 @@ public final class LogParser {
         String cardName = state.activePlay == null ? "" : state.activePlay.cardName;
         if (kind.contains("city") || "capital".equals(kind)) {
             player.cities++;
-            if (!offMarsCity(cardName) && BoardLayout.onMars(hex)) {
+            if (!CardDatabase.offMarsCity(cardName) && BoardLayout.onMars(hex)) {
                 player.citiesOnMars++;
             }
         } else if (kind.contains("greenery")) {
@@ -1169,7 +1178,7 @@ public final class LogParser {
             placeOnBoard(hex, kind, cardName, player.id);
         }
         if ((kind.contains("city") || "capital".equals(kind)) && state.generation <= 1
-                && !offMarsCity(cardName)) {
+                && !CardDatabase.offMarsCity(cardName)) {
             assignTharsisIfPending();
         }
         if (player.human) {
@@ -1225,15 +1234,6 @@ public final class LogParser {
             tile.ownerId = playerId;
         }
         state.tiles.put(hex, tile);
-    }
-
-    private static boolean offMarsCity(String cardName) {
-        if (cardName == null) {
-            return false;
-        }
-        String n = cardName.toLowerCase();
-        return n.contains("phobos") || n.contains("ganymede") || n.contains("luna") || n.contains("stanford")
-                || n.contains("maxwell base") || n.contains("stratopolis") || n.contains("dawn city");
     }
 
     private static String humanPhase(String raw) {

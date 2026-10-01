@@ -231,7 +231,7 @@ public final class CardDatabase {
         if (extra.contains("next to no other tile")) {
             tips.add("Must sit next to no other tile.");
         }
-        if (extra.contains("reserved")) {
+        if (extra.contains("reserved") && !offMarsCity(card.name)) {
             tips.add("Goes on a reserved area (Noctis, ocean strip, volcano, or off-Mars slot).");
         }
         if (extra.contains("adjacent to at least 2 other city")) {
@@ -274,6 +274,16 @@ public final class CardDatabase {
         return card.extra.replace('\n', ' ').replaceAll("\\s+", " ").trim();
     }
 
+    /** Cities that sit off Mars on their own reserved space (moons, orbit, Venus). */
+    public static boolean offMarsCity(String cardName) {
+        if (cardName == null) {
+            return false;
+        }
+        String n = cardName.toLowerCase(Locale.ROOT);
+        return n.contains("phobos") || n.contains("ganymede") || n.contains("luna") || n.contains("stanford")
+                || n.contains("maxwell base") || n.contains("stratopolis") || n.contains("dawn city");
+    }
+
     private static List<String> placementTips(String kind, Card card, String board) {
         String map = board == null ? "" : board.toLowerCase(Locale.ROOT);
         String k = kind.toLowerCase(Locale.ROOT);
@@ -284,6 +294,9 @@ public final class CardDatabase {
         } else if (k.contains("greenery")) {
             tips.add("Place a greenery. Raise oxygen +1 TR. Prefer adjacent to your tiles.");
             tips.add("Each greenery next to your city is 1 VP at game end.");
+        } else if (k.contains("city") && card != null && offMarsCity(card.name)) {
+            tips.add("Off-Mars city on its own reserved space: no placement bonus, no ocean payout.");
+            tips.add("Counts as one of your cities, but greeneries can't be placed next to it for VP.");
         } else if (k.contains("city")) {
             tips.add("Place a city. +1 M€ production. Adjacent oceans pay 2 M€ now.");
             tips.add("Later greeneries adjacent to this city are VP.");
@@ -397,12 +410,17 @@ public final class CardDatabase {
         return null;
     }
 
+    /** The game's id for a card: printed number, or 4000 + n for Colonies cards (C11 is 4011 in the log). */
     static int parseCardNumber(String number) {
         if (number == null || number.isBlank()) {
             return 0;
         }
+        String n = number.trim();
         try {
-            return Integer.parseInt(number.trim());
+            if (n.length() > 1 && (n.charAt(0) == 'C' || n.charAt(0) == 'c')) {
+                return 4000 + Integer.parseInt(n.substring(1));
+            }
+            return Integer.parseInt(n);
         } catch (NumberFormatException ignored) {
             return 0;
         }
