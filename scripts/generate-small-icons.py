@@ -31,7 +31,7 @@ SUPER = 8
 BASE = ROOT / "src" / "main" / "icons" / "icon-base.png"
 BASE_PLANET = (512, 509, 268)        # centre and radius of Mars in icon-base.png
 BASE_HEX_BOX = (570, 628, 671, 718)  # its cream hex, padded
-PATCH_CONTRAST = 1.6
+PATCH_CONTRAST = 1.0
 LOWER_RIGHT = (0.55, 0.835)  # same direction as the tiles on the app icon
 
 
