@@ -597,12 +597,59 @@ function renderDrawn(play) {
   }).join("")}</span>`;
 }
 
+/**
+ * While you confirm a card: would paying for it (the game fills a short M€ payment with steel, titanium,
+ * or Helion's heat on its own) cost you the lead in a funded award that counts those resources?
+ */
+function awardSpendWarnings(data, play) {
+  if (!play || !play.yours || !play.preview || play.cost == null) return [];
+  const you = data.you || {};
+  const out = [];
+  const tags = play.tags || [];
+  const check = (awardKey, mine, spend, what) => {
+    const award = (data.fundedAwards || []).find((a) => glossaryKey(a.name) === awardKey);
+    if (!award || spend <= 0) return;
+    const rivals = (award.standings || []).filter((s) => s.id !== you.id);
+    if (!rivals.length) return;
+    const best = rivals.reduce((a, b) => (b.value > a.value ? b : a));
+    const after = mine - spend;
+    // Only when this payment is what puts you behind: you're level or ahead now, and below them after.
+    if (mine < best.value || after >= best.value) return;
+    out.push(`${award.name}: paying with ${what} drops you from ${mine} to ${after}, behind ${best.name} (${best.value}). Pay in M€ if you can.`);
+  };
+  // Pressing Use logs exactly what the game will take; without that, assume the most it could take.
+  const pay = play.payment && Object.keys(play.payment).length ? play.payment : null;
+  const tiValue = /phobo/i.test(you.corporation || "") ? 4 : 3;
+  const steel = pay ? (pay.steel || 0) : tags.includes("building") ? Math.min(you.steel || 0, Math.ceil(play.cost / 2)) : 0;
+  const ti = pay ? (pay.titanium || 0) : tags.includes("space") ? Math.min(you.titanium || 0, Math.ceil(play.cost / tiValue)) : 0;
+  const heat = pay ? (pay.heat || 0) : /helion/i.test(you.corporation || "") ? Math.min(you.heat || 0, play.cost) : 0;
+  const onCards = pay ? (pay.microbe || 0) + (pay.floater || 0) : 0;
+  const parts = [steel && `${steel} steel`, ti && `${ti} titanium`].filter(Boolean).join(" and ");
+  check("miner", (you.steel || 0) + (you.titanium || 0), steel + ti, parts);
+  check("thermalist", you.heat || 0, heat, `${heat} heat`);
+  const held = [...(you.blueCards || []), ...(you.greenCards || []), ...(you.corpCard ? [you.corpCard] : [])]
+    .reduce((sum, c) => sum + (c.tokens || 0), 0);
+  check("excentric", held, onCards, [pay && pay.microbe && `${pay.microbe} microbes`, pay && pay.floater && `${pay.floater} floaters`]
+    .filter(Boolean).join(" and "));
+  return out;
+}
+
+/** "This payment uses 4 steel": what the game took besides M€ when you pressed Use. */
+function paymentTips(play) {
+  if (!play || !play.yours || !play.preview || !play.payment) return [];
+  const words = { steel: "steel", titanium: "titanium", heat: "heat", microbe: "microbes", floater: "floaters" };
+  const parts = Object.entries(play.payment).filter(([, n]) => n > 0)
+    .map(([what, n]) => `${n} ${n === 1 ? what : words[what] || what}`);
+  return parts.length ? [`This payment uses ${parts.join(" and ")}.`] : [];
+}
+
 function renderBanner(data) {
   const play = data.activePlay;
   const banner = $("banner");
   banner.classList.remove("yours", "color-blue", "color-green", "color-purple", "color-yellow", "color-red", "color-black");
   const log = data.log || [];
   let tips = [];
+  let warnings = [];
   const placing = placingLabel(play && play.placing);
   const placingEl = $("banner-placing");
   if (placing) {
@@ -623,7 +670,8 @@ function renderBanner(data) {
       play.cost != null ? costSym(play.cost) : ""
     }${(play.tags || []).map(tagIcon).join("")}${renderDrawn(play)}`);
     setHtml($("banner-benefit"), benefitHtml(play));
-    tips = play.remember || [];
+    warnings = awardSpendWarnings(data, play);
+    tips = [...paymentTips(play), ...(play.remember || [])];
   } else {
     $("banner-kicker").textContent = "No card in flight";
     setHtml($("banner-line"), log.length
@@ -632,8 +680,9 @@ function renderBanner(data) {
     setHtml($("banner-benefit"), "");
   }
   // Placement tips stay visible under the header; they aren't behind the arrow.
-  setHtml($("banner-tips"), tips.map((t) => `<li>${escapeHtml(t)}</li>`).join(""));
-  $("banner-tips").hidden = tips.length === 0;
+  setHtml($("banner-tips"), warnings.map((t) => `<li class="warn">${escapeHtml(t)}</li>`).join("")
+    + tips.map((t) => `<li>${escapeHtml(t)}</li>`).join(""));
+  $("banner-tips").hidden = tips.length + warnings.length === 0;
   // The arrow always opens the game log, whether or not a card is in flight.
   $("banner-toggle").disabled = log.length === 0;
   $("banner-chevron").hidden = log.length === 0;
@@ -1012,8 +1061,14 @@ const CHART_METRICS = [
   { id: "tr", key: "tr", label: "TR", kind: "tr" },
   ...PROD_RES.map((r) => {
     const name = resLabel(r);
-    return { id: "prod-" + r, key: "prod-" + r, res: r, kind: "prod-" + r,
+    return { id: "prod-" + r, key: "prod-" + r, res: r, kind: "prod-" + r, row: "prod",
       label: name.charAt(0).toUpperCase() + name.slice(1) + " production" };
+  }),
+  // On hand at each generation's end, after production.
+  ...PROD_RES.map((r) => {
+    const name = resLabel(r);
+    return { id: "qty-" + r, key: "qty-" + r, res: r, kind: "qty-" + r, row: "qty",
+      label: name.charAt(0).toUpperCase() + name.slice(1) + " on hand" };
   }),
 ];
 
@@ -1040,11 +1095,13 @@ function renderScoreCharts(data, players, history, ended) {
   }
   const metric = chartMetric();
   const score = CHART_METRICS.filter((m) => !m.res);
-  const prod = CHART_METRICS.filter((m) => m.res);
+  const prod = CHART_METRICS.filter((m) => m.row === "prod");
+  const qty = CHART_METRICS.filter((m) => m.row === "qty");
   setHtml(box, `
     <div class="chart-picker">
       <div class="chart-picker-row"><span class="chart-picker-label">Score</span>${score.map(chartChip).join("")}</div>
       <div class="chart-picker-row"><span class="chart-picker-label">Production</span>${prod.map(chartChip).join("")}</div>
+      <div class="chart-picker-row"><span class="chart-picker-label">Quantity</span>${qty.map(chartChip).join("")}</div>
     </div>
     <div class="score-chart-block">
       <h3 class="section-title">${chartMetricTitle(metric, ended)}</h3>
@@ -1286,8 +1343,8 @@ function renderContributors(data, p, metric, cur, prev) {
   const rows = [...bySource.values()]
     .filter((r) => r.total !== 0 || r.now !== 0)
     .sort((a, b) => Math.abs(b.now) - Math.abs(a.now) || Math.abs(b.total) - Math.abs(a.total));
-  const base = value - rows.reduce((sum, r) => sum + r.total, 0);
-  const items = rows.map((r) => {
+  const base = metric.row === "qty" ? 0 : value - rows.reduce((sum, r) => sum + r.total, 0);
+  const items = metric.row === "qty" ? [] : rows.map((r) => {
     const note = r.now === 0 ? "" : r.now === r.total ? " (new)" : ` (${signed(r.now)} this gen)`;
     return `<li${r.now ? ` class="moved"` : ""}>${cardRef(r.label)} <strong>${signed(r.total)}</strong>${note}</li>`;
   });

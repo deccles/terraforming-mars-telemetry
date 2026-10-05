@@ -249,7 +249,7 @@ public final class GameState {
         return point;
     }
 
-    /** Score breakdown plus production, one chart point for one player. */
+    /** Score breakdown plus production and resources on hand, one chart point for one player. */
     static Map<String, Integer> chartValues(ScoreCalculator.Breakdown b, PlayerState p) {
         Map<String, Integer> out = b.toCompact();
         out.put("prod-mc", p.megaCreditProd);
@@ -258,6 +258,12 @@ public final class GameState {
         out.put("prod-plant", p.plantProd);
         out.put("prod-energy", p.energyProd);
         out.put("prod-heat", p.heatProd);
+        out.put("qty-mc", p.megaCredits);
+        out.put("qty-steel", p.steel);
+        out.put("qty-ti", p.titanium);
+        out.put("qty-plant", p.plants);
+        out.put("qty-energy", p.energy);
+        out.put("qty-heat", p.heat);
         return out;
     }
 }

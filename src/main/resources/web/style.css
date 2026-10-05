@@ -222,6 +222,8 @@ h1.brand { margin: 0; display: flex; align-items: center; gap: 12px; font-weight
 .tips { margin: 0; padding: 0 16px 12px 34px; }
 .tips[hidden] { display: none; }
 .tips li { margin: 4px 0; color: #f6d9b8; }
+.tips li.warn { color: #ff6259; font-weight: 650; }
+.tips li.warn::marker { content: "⚠ "; }
 .game-log[hidden] { display: none !important; }
 .banner-log-summary { font-size: 0.95rem; font-weight: 500; color: var(--muted); }
 .log-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }

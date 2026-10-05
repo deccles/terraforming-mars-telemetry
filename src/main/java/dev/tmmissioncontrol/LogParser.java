@@ -69,6 +69,8 @@ public final class LogParser {
     /** Start of a game-action dump; colony builds and trades are only described inside these. */
     private static final Pattern EVENT_START = Pattern.compile(
             "\\[PlayerAction] Player \\d+ Play for player (\\d+) event : GameActionEvent");
+    /** Pressing Use on a card logs the planned payment just before the "Do you want to play" prompt. */
+    private static final Pattern PAYMENT = Pattern.compile("] (steel|titanium|heat|microbe|floater)Cost: (\\d+)$");
     /** Setup lists each colony tile in play once per player. */
     private static final Pattern COLONY_TILE = Pattern.compile("\\[PlayerAction] Added (\\w+) actions to \\d+");
     private static final Pattern GAIN_FLEET = Pattern.compile(
@@ -100,6 +102,7 @@ public final class LogParser {
     long launchEpochMs = -1;
     private final java.util.Map<Integer, String> steamCorps = new java.util.HashMap<>();
     private ActionEvent pendingEvent;
+    private final java.util.Map<String, Integer> pendingPayment = new java.util.LinkedHashMap<>();
     /** Each action is dumped more than once; its Time stamp tells repeats apart. */
     private final java.util.Set<String> seenEvents = new java.util.HashSet<>();
 
@@ -334,9 +337,19 @@ public final class LogParser {
                 state.colonyTiles.values().forEach(t -> t.wake(held));
             }
 
+            m = PAYMENT.matcher(line);
+            if (m.find()) {
+                pendingPayment.put(m.group(1), Integer.parseInt(m.group(2)));
+            }
             m = CONFIRM_PLAY.matcher(line);
             if (m.find()) {
                 setActive(currentPlayer, m.group(1).trim(), null, true);
+                pendingPayment.forEach((what, n) -> {
+                    if (n > 0) {
+                        state.activePlay.payment.put(what, n);
+                    }
+                });
+                pendingPayment.clear();
             }
 
             m = PLAYING_CARD.matcher(line);
@@ -1168,6 +1181,7 @@ public final class LogParser {
         play.playerLabel = player.label();
         play.cardName = name.startsWith("Standard Project:") ? name : cards.displayName(lookup);
         play.yours = player.human;
+        play.preview = preview;
         play.colorLabel = name.startsWith("Using ")
                 ? "Action"
                 : (card != null ? card.colorLabel() : (preview ? "Confirming" : ""));
