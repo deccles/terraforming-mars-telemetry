@@ -257,12 +257,37 @@ let tipUiBound = false;
 function applyOpenTip() {
   document.querySelectorAll(".tip").forEach((el) => {
     el.classList.toggle("open", !!openTipKey && el.dataset.tipKey === openTipKey);
+    if (el.classList.contains("open")) placeTip(el);
   });
+}
+
+/** Keep a shown tooltip on screen: slide it left from the right edge, and open it below if there's no room above. */
+function placeTip(tip) {
+  const pop = tip && tip.querySelector(":scope > .tip-pop");
+  if (!pop) return;
+  pop.style.left = "";
+  pop.style.top = "";
+  pop.style.bottom = "";
+  const edge = 8;
+  const r = pop.getBoundingClientRect();
+  if (!r.width) return;
+  const over = r.right - (document.documentElement.clientWidth - edge);
+  if (over > 0) pop.style.left = `${-Math.min(over, Math.max(0, r.left - edge))}px`;
+  if (r.top < edge) {
+    pop.style.bottom = "auto";
+    pop.style.top = "calc(100% + 8px)";
+  }
 }
 
 function bindTipUi() {
   if (tipUiBound) return;
   tipUiBound = true;
+  const place = (ev) => {
+    const tip = ev.target.closest && ev.target.closest(".tip");
+    if (tip) placeTip(tip);
+  };
+  document.addEventListener("mouseover", place);
+  document.addEventListener("focusin", place);
   document.addEventListener("click", (ev) => {
     const tip = ev.target.closest(".tip");
     if (tip && tip.dataset.tipKey) {

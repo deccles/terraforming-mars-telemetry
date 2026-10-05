@@ -927,17 +927,14 @@ table.cubes td.prod.na { color: var(--muted); opacity: 0.6; }
   letter-spacing: 0;
   text-transform: none;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-  opacity: 0;
+  /* Hidden tooltips take no room, so one near the right edge can't widen the page. */
+  display: none;
   pointer-events: none;
-  visibility: hidden;
-  transform: translateY(4px);
 }
 .tip:hover > .tip-pop,
 .tip:focus-visible > .tip-pop,
 .tip.open > .tip-pop {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
+  display: block;
 }
 .tip-def { display: block; }
 .tip-standings {

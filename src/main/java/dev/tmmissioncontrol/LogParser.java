@@ -1190,9 +1190,6 @@ public final class LogParser {
         play.effect = card != null ? cards.cardText(card) : (preview ? "Waiting for confirm." : "");
         play.placing = placing;
         play.remember.addAll(cards.remember(card, placing, state.board));
-        if (preview && play.remember.isEmpty()) {
-            play.remember.add("Confirming this card.");
-        }
         if ("Standard Project: Build Colony".equals(name)) {
             play.remember.add("17 M€: place a colony and take that tile's placement bonus now.");
             play.remember.add("After that, you get the tile's colony bonus whenever anyone trades there.");
